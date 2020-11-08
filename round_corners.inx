@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+  <name>Round Corners</name>
+  <id>org.inkscape.jnweiger.round_corners</id>
+  <param name="radius" type="float" gui-text="Radius: [mm]" precision="2" min="0.01" max="999.99">2.0</param>
+  <!-- Keep in sync with round_corners.py line 38 __version__ = ... -->
+  <label xml:space="preserve">
+
+* Select a Path.
+* Go to edit mode and select one or more vertices.
+* Set the radius for rounding corner.
+* Apply
+
+The selected vertex is replaced by two vertices forming 
+a bezier spline that approximates an arc of the give radius.
+
+Version: 0.1
+  </label>
+  <effect>
+    <object-type>path</object-type>
+    <effects-menu>
+      <submenu name="Modify Path"/>
+    </effects-menu>
+  </effect>
+  <script>
+    <command location="inx" interpreter="python">round_corners.py</command>
+  </script>
+</inkscape-extension>
