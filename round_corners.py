@@ -55,23 +55,23 @@ class RoundedCorners(inkex.EffectExtension):
 
 
     def effect(self):
-        paths = []
-        for node in self.svg.selection.filter(inkex.PathElement).values():
-            paths.append(node)
-        if len(paths) < 1:
-            raise inkex.AbortExtension("Need at least one selected path.")
+        if debug: print(self.options.selected_nodes, file=self.tty)     # SvgInputMixin __init__: "id:subpath:position of selected nodes, if any"
 
-        for path in paths:
-            path.apply_transform()
+        if len(self.options.selected_nodes) < 1:
+          raise inkex.AbortExtension("Need at least one selected node in the path. Go to edit path, click a corner, then try again.")
+        paths = {}
+        for node in self.options.selected_nodes:
+           s = node.split(":")
+           n = { 'path_id': s[0], 'subpath_idx': int(s[1]), 'node_idx': int(s[2]) }
+           n['elem'] = self.svg.getElementById(n['path_id'])
+           n['elem'].apply_transform()       # modifies path inplace? -- We save later save back to the same element. Maybe we should not?
+           path = n['elem'].path
+           n['path'] = path
+           n['superpath'] = path.to_superpath()
 
-        pts = [node.path.to_superpath() for node in paths]
-        
-        if debug:
-          for i in range(0, len(pts)):
-            print("RoundedCorners: pts[%d]: %s"   % (i, pts[i]), file=self.tty)
-            print("RoundedCorners: paths[%d]: %s" % (i, paths[i].path), file=self.tty)
-          print(self.svg_path(), file=self.tty)
-          print(self.options.selected_nodes, file=self.tty)     # SvgInputMixin __init__: "id:subpath:position of selected nodes, if any"
+           paths[node] = n
+           if debug: print(n, file=self.tty)
+
 
         # documented in https://inkscape.gitlab.io/extensions/documentation/inkex.command.html
         # inkex.command.write_svg(self.svg, "/tmp/seen.svg")
