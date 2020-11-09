@@ -66,8 +66,16 @@ class RoundedCorners(inkex.EffectExtension):
 
         pts = [node.path.to_superpath() for node in paths]
         
-        for p in pts:
-          print("RoundedCorners: pts: %s" % p, file=self.tty)
+        if debug:
+          for i in range(0, len(pts)):
+            print("RoundedCorners: pts[%d]: %s"   % (i, pts[i]), file=self.tty)
+            print("RoundedCorners: paths[%d]: %s" % (i, paths[i].path), file=self.tty)
+          print(self.svg_path(), file=self.tty)
+          print(self.options.selected_nodes, file=self.tty)     # SvgInputMixin __init__: "id:subpath:position of selected nodes, if any"
+
+        # documented in https://inkscape.gitlab.io/extensions/documentation/inkex.command.html
+        # inkex.command.write_svg(self.svg, "/tmp/seen.svg")
+        # - AttributeError: module 'inkex' has no attribute 'command
 
 
     def clean_up(self):         # __fini__
