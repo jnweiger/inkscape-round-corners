@@ -18,6 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 # v0.1, 2020-11-08, jw	- initial draught, finding and printing selected nodes to the terminal...
+# v0.2, 2020-11-08, jw	- duplicate the selected nodes in their superpaths, write them back.
 #
 """
 Rounded Corners
@@ -59,18 +60,25 @@ class RoundedCorners(inkex.EffectExtension):
 
         if len(self.options.selected_nodes) < 1:
           raise inkex.AbortExtension("Need at least one selected node in the path. Go to edit path, click a corner, then try again.")
-        paths = {}
-        for node in self.options.selected_nodes:
+        for node in sorted(self.options.selected_nodes):
+           ## must keep track of renumbering if subsequent vertics in the same subpath.
            s = node.split(":")
-           n = { 'path_id': s[0], 'subpath_idx': int(s[1]), 'node_idx': int(s[2]) }
-           n['elem'] = self.svg.getElementById(n['path_id'])
-           n['elem'].apply_transform()       # modifies path inplace? -- We save later save back to the same element. Maybe we should not?
-           path = n['elem'].path
-           n['path'] = path
-           n['superpath'] = path.to_superpath()
+           path_id = s[0]
+           subpath_idx = int(s[1])
+           node_idx = int(s[2])
+           elem = self.svg.getElementById(path_id)
+           elem.apply_transform()       # modifies path inplace? -- We save later save back to the same element. Maybe we should not?
+           path = elem.path
+           s = path.to_superpath()
+           ss = s[subpath_idx]
+           # if debug: print(ss, file=self.tty)
+           # if debug: print(ss[node_idx], file=self.tty)
 
-           paths[node] = n
-           if debug: print(n, file=self.tty)
+           ## as a first exercise, let us duplicate the selected vertex
+           ss = ss[:node_idx+1] + ss[node_idx:]
+           # convert the superpath back to a normal path
+           s[subpath_idx] = ss
+           # elem.path = superpath_to_path(s)
 
 
         # documented in https://inkscape.gitlab.io/extensions/documentation/inkex.command.html
