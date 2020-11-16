@@ -106,6 +106,19 @@ class RoundedCorners(inkex.EffectExtension):
 
 
     def subpath_round_corner(self, sp, node_idx):
+      """ In case of node_idx 0, we need to use either the last, or the second-last node as a previous node.
+          For a closed subpath, the last an the first node are identical, then we use the second-last.
+          In case of the node_idx being the last node, we already know that the subpath is not closed, we use 0 as the next node.
+      """
+      prev_idx = node_idx - 1
+      if node_idx == 0:
+        prev_idx = len(sp) - 1
+        # deep compare. all elemetns in sub arrays are compared for numerical equality
+        if sp[node_idx] == sp[prev_idx]: prev_idx = prev_idx - 1
+      next_idx = node_idx + 1
+      if next_idx >= len(sp): next_idx = 0
+
+        
       return sp[:node_idx+1] + sp[node_idx:]
 
 
