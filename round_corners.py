@@ -19,6 +19,7 @@
 #
 # v0.1, 2020-11-08, jw	- initial draught, finding and printing selected nodes to the terminal...
 # v0.2, 2020-11-08, jw	- duplicate the selected nodes in their superpaths, write them back.
+# v0.3, 2020-11-21, jw	- find "meta-handles"
 #
 """
 Rounded Corners
@@ -40,8 +41,9 @@ References:
 from __future__ import print_function
 
 import inkex
+import sys, math, pprint
 
-__version__ = '0.2'     # Keep in sync with round_corners.inx line 16
+__version__ = '0.3'     # Keep in sync with round_corners.inx line 16
 
 debug = True
 
@@ -57,6 +59,8 @@ class RoundedCorners(inkex.EffectExtension):
           self.tty = open(os.devnull, 'w')  # '/dev/null' for POSIX, 'nul' for Windows.
       if debug: print("RoundedCorners ...", file=self.tty)
       self.nodes_inserted = {}
+      self.eps = 0.00001                # avoid division by zero
+      self.radius = None
 
       pars.add_argument("--radius", type=float, default=2.0, help="Radius [mm] to round selected vertices")
 
@@ -64,6 +68,7 @@ class RoundedCorners(inkex.EffectExtension):
     def effect(self):
         if debug: print(self.options.selected_nodes, file=self.tty)     # SvgInputMixin __init__: "id:subpath:position of selected nodes, if any"
 
+        self.radius = math.fabs(self.options.radius)
         if len(self.options.selected_nodes) < 1:
           raise inkex.AbortExtension("Need at least one selected node in the path. Go to edit path, click a corner, then try again.")
         for node in sorted(self.options.selected_nodes):
@@ -105,20 +110,73 @@ class RoundedCorners(inkex.EffectExtension):
       # - AttributeError: module 'inkex' has no attribute 'command
 
 
-    def subpath_round_corner(self, sp, node_idx):
+    def super_node(self, sp, node_idx):
       """ In case of node_idx 0, we need to use either the last, or the second-last node as a previous node.
           For a closed subpath, the last an the first node are identical, then we use the second-last.
-          In case of the node_idx being the last node, we already know that the subpath is not closed, we use 0 as the next node.
+          In case of the node_idx being the last node, we already know that the subpath is not closed,
+          we use 0 as the next node.
       """
       prev_idx = node_idx - 1
       if node_idx == 0:
         prev_idx = len(sp) - 1
-        # deep compare. all elemetns in sub arrays are compared for numerical equality
+        # deep compare. all elements in sub arrays are compared for numerical equality
         if sp[node_idx] == sp[prev_idx]: prev_idx = prev_idx - 1
       next_idx = node_idx + 1
       if next_idx >= len(sp): next_idx = 0
+      t = sp[node_idx]
+      p = sp[prev_idx]
+      n = sp[next_idx]
+      dir1 = [ p[1][0] - t[1][0], p[1][1] - t[1][1] ]           # direction to the previous node (rel coords)
+      dir2 = [ n[1][0] - t[1][0], n[1][1] - t[1][1] ]           # direction to the next node (rel coords)
+      dist1 = math.sqrt(dir1[0]*dir1[0] + dir1[1]*dir1[1])      # distance to the previous node
+      dist2 = math.sqrt(dir2[0]*dir2[0] + dir2[1]*dir2[1])      # distance to the next node
+      handle1 = [ t[0][0] - t[1][0], t[2][1] - t[1][1] ]        # handle towards previous node (rel coords)
+      handle2 = [ t[0][0] - t[1][0], t[2][1] - t[1][1] ]        # handle towards next node (rel coords)
+      if handle1 == [ 0, 0 ]: handle1 = dir1
+      if handle2 == [ 0, 0 ]: handle2 = dir2
 
+      prev = { 'idx': prev_idx, 'dir':dir1, 'handle':handle1 }
+      next = { 'idx': next_idx, 'dir':dir2, 'handle':handle2 }
+      sn = { 'idx': node_idx, 'prev': prev, 'next': next, 'x': t[1][0], 'y': t[1][1] }
+
+      if dist1 < self.radius:
+        print("subpath node_idx=%d, dist to prev(%d) is smaller than radius: %g < %g" %
+              (node_idx, prev_idx, dist1, self.radius), file=sys.stderr)
+        pprint.pprint(sn, stream=sys.stderr)
+        return None
+      if dist2 < self.radius:
+        print("subpath node_idx=%d, dist to next(%d) is smaller than radius: %g < %g" %
+              (node_idx, next_idx, dist2, self.radius), file=sys.stderr)
+        pprint.pprint(sn, stream=sys.stderr)
+        return None
+
+      len_h1 = math.sqrt(handle1[0]*handle1[0] + handle1[1]*handle1[1])
+      len_h2 = math.sqrt(handle2[0]*handle2[0] + handle2[1]*handle2[1])
+      if len_h1 < self.radius:
+        print("subpath node_idx=%d, handle to prev(%d) is shorter than radius: %g < %g" %
+              (node_idx, prev_idx, len_h1, self.radius), file=sys.stderr)
+        pprint.pprint(sn, stream=sys.stderr)
+        return None
+      if len_h2 < self.radius:
+        print("subpath node_idx=%d, handle to next(%d) is shorter than radius: %g < %g" %
+              (node_idx, next_idx, len_h2, self.radius), file=sys.stderr)
+        pprint.pprint(sn, stream=sys.stderr)
+        return None
+      if len_h1 > dist1: # shorten that handle to dist1, avoid overshooting the point
+        handle1[0] = handle1[0] * dist1 / len_h1
+        handle1[1] = handle1[1] * dist1 / len_h1
+      if len_h2 > dist2: # shorten that handle to dist2, avoid overshooting the point
+        handle2[0] = handle2[0] * dist2 / len_h2
+        handle2[1] = handle2[1] * dist2 / len_h2
         
+      return sn
+
+
+    def subpath_round_corner(self, sp, node_idx):
+      sn = self.super_node(sp, node_idx)
+      if sn is None: return sp          # do nothing. stderr messages are already printed.
+
+      pprint.pprint(sn, stream=self.tty)
       return sp[:node_idx+1] + sp[node_idx:]
 
 

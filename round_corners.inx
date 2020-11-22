@@ -2,7 +2,7 @@
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
   <name>Round Corners</name>
   <id>org.inkscape.jnweiger.round_corners</id>
-  <param name="radius" type="float" gui-text="Radius: [mm]" precision="2" min="0.01" max="999.99">2.0</param>
+  <param name="radius" type="float" gui-text="Radius: [mm]" precision="2" min="0.001" max="999.99">2.0</param>
   <!-- Keep in sync with round_corners.py line 38 __version__ = ... -->
   <label xml:space="preserve">
 
@@ -14,7 +14,7 @@
 The selected vertex is replaced by two vertices forming 
 a bezier spline that approximates an arc of the give radius.
 
-Version: 0.2
+Version: 0.3
   </label>
   <effect>
     <object-type>path</object-type>
