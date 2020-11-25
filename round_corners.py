@@ -24,7 +24,7 @@
 """
 Rounded Corners
 
-This extension finds selected pointy nodes and converts them to a radius. 
+This extension finds selected pointy nodes and converts them to a radius.
 The radius is approximated by a bezier spline, as we are doing path operations here...
 
 Written according to https://gitlab.com/inkscape/extensions/-/wikis/home
@@ -130,8 +130,8 @@ class RoundedCorners(inkex.EffectExtension):
       dir2 = [ n[1][0] - t[1][0], n[1][1] - t[1][1] ]           # direction to the next node (rel coords)
       dist1 = math.sqrt(dir1[0]*dir1[0] + dir1[1]*dir1[1])      # distance to the previous node
       dist2 = math.sqrt(dir2[0]*dir2[0] + dir2[1]*dir2[1])      # distance to the next node
-      handle1 = [ t[0][0] - t[1][0], t[2][1] - t[1][1] ]        # handle towards previous node (rel coords)
-      handle2 = [ t[0][0] - t[1][0], t[2][1] - t[1][1] ]        # handle towards next node (rel coords)
+      handle1 = [ t[0][0] - t[1][0], t[0][1] - t[1][1] ]        # handle towards previous node (rel coords)
+      handle2 = [ t[2][0] - t[1][0], t[2][1] - t[1][1] ]        # handle towards next node (rel coords)
       if handle1 == [ 0, 0 ]: handle1 = dir1
       if handle2 == [ 0, 0 ]: handle2 = dir2
 
@@ -152,6 +152,7 @@ class RoundedCorners(inkex.EffectExtension):
 
       len_h1 = math.sqrt(handle1[0]*handle1[0] + handle1[1]*handle1[1])
       len_h2 = math.sqrt(handle2[0]*handle2[0] + handle2[1]*handle2[1])
+
       if len_h1 < self.radius:
         print("subpath node_idx=%d, handle to prev(%d) is shorter than radius: %g < %g" %
               (node_idx, prev_idx, len_h1, self.radius), file=sys.stderr)
@@ -162,19 +163,22 @@ class RoundedCorners(inkex.EffectExtension):
               (node_idx, next_idx, len_h2, self.radius), file=sys.stderr)
         pprint.pprint(sn, stream=sys.stderr)
         return None
+
       if len_h1 > dist1: # shorten that handle to dist1, avoid overshooting the point
         handle1[0] = handle1[0] * dist1 / len_h1
         handle1[1] = handle1[1] * dist1 / len_h1
       if len_h2 > dist2: # shorten that handle to dist2, avoid overshooting the point
         handle2[0] = handle2[0] * dist2 / len_h2
         handle2[1] = handle2[1] * dist2 / len_h2
-        
+
       return sn
 
 
     def subpath_round_corner(self, sp, node_idx):
       sn = self.super_node(sp, node_idx)
       if sn is None: return sp          # do nothing. stderr messages are already printed.
+      # The angle to be rounded is now between the vectors
+      # sn['prev']['handle'] and sn['next']['handle']
 
       pprint.pprint(sn, stream=self.tty)
       return sp[:node_idx+1] + sp[node_idx:]
