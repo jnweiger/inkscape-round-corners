@@ -177,8 +177,17 @@ class RoundedCorners(inkex.EffectExtension):
     def subpath_round_corner(self, sp, node_idx):
       sn = self.super_node(sp, node_idx)
       if sn is None: return sp          # do nothing. stderr messages are already printed.
-      # The angle to be rounded is now between the vectors
-      # sn['prev']['handle'] and sn['next']['handle']
+
+      # from https://de.wikipedia.org/wiki/Schnittwinkel_(Geometrie)
+      # wikipedia has an abs() in the formula, which extracts the smaller of the two angles.
+      # we don't want that. We need to distinguish betwenn spitzwingklig and stumpfwinklig.
+      #
+      # The angle to be rounded is now between the vectors a and b
+      #
+      a = sn['prev']['handle']
+      b = sn['next']['handle']
+      alpha = math.acos( (a[0]*b[0]+a[1]*b[1]) / ( math.sqrt(a[0]*a[0]+a[1]*a[1]) * math.sqrt(b[0]*b[0]+b[1]*b[1]) ) )
+      sn['alpha'] = math.degrees(alpha)
 
       pprint.pprint(sn, stream=self.tty)
       return sp[:node_idx+1] + sp[node_idx:]
