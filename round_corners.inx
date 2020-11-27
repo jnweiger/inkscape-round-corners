@@ -3,6 +3,7 @@
   <name>Round Corners</name>
   <id>org.inkscape.jnweiger.round_corners</id>
   <param name="radius" type="float" gui-text="Radius: [mm]" precision="2" min="0.001" max="999.99">2.0</param>
+  <param name="cut" type="bool" gui-text="Cut corners with straight lines (instead of fitting an arc)">false</param>
   <!-- Keep in sync with round_corners.py line 38 __version__ = ... -->
   <label xml:space="preserve">
 
@@ -14,7 +15,7 @@
 The selected vertex is replaced by two vertices forming 
 a bezier spline that approximates an arc of the give radius.
 
-Version: 0.3
+Version: 0.4
   </label>
   <effect>
     <object-type>path</object-type>

@@ -20,6 +20,8 @@
 # v0.1, 2020-11-08, jw	- initial draught, finding and printing selected nodes to the terminal...
 # v0.2, 2020-11-08, jw	- duplicate the selected nodes in their superpaths, write them back.
 # v0.3, 2020-11-21, jw	- find "meta-handles"
+# v0.4, 2020-11-26, jw	- alpha and trim math added. trimming with a striaght line implemented, needs fixes.
+#                         Option 'cut' added.
 #
 """
 Rounded Corners
@@ -43,9 +45,10 @@ from __future__ import print_function
 import inkex
 import sys, math, pprint
 
-__version__ = '0.3'     # Keep in sync with round_corners.inx line 16
+__version__ = '0.4'     # Keep in sync with round_corners.inx line 16
 
 debug = True
+max_trim_factor = 0.5   # 0.5: can cut half of a segment length or handle length away for rounding a corner
 
 class RoundedCorners(inkex.EffectExtension):
 
@@ -63,12 +66,16 @@ class RoundedCorners(inkex.EffectExtension):
       self.radius = None
 
       pars.add_argument("--radius", type=float, default=2.0, help="Radius [mm] to round selected vertices")
+      pars.add_argument("--cut", type=str, default="false", help="cut corners with straight lines (instead of fitting an arc)")
 
 
     def effect(self):
         if debug: print(self.options.selected_nodes, file=self.tty)     # SvgInputMixin __init__: "id:subpath:position of selected nodes, if any"
 
         self.radius = math.fabs(self.options.radius)
+        self.cut = False
+        if self.options.cut in ('True', 'TRUE', 'true', '1', 'Yes', 'YES', 'yes'):
+          self.cut = True
         if len(self.options.selected_nodes) < 1:
           raise inkex.AbortExtension("Need at least one selected node in the path. Go to edit path, click a corner, then try again.")
         for node in sorted(self.options.selected_nodes):
@@ -152,6 +159,8 @@ class RoundedCorners(inkex.EffectExtension):
 
       len_h1 = math.sqrt(handle1[0]*handle1[0] + handle1[1]*handle1[1])
       len_h2 = math.sqrt(handle2[0]*handle2[0] + handle2[1]*handle2[1])
+      prev['hlen'] = len_h1
+      next['hlen'] = len_h2
 
       if len_h1 < self.radius:
         print("subpath node_idx=%d, handle to prev(%d) is shorter than radius: %g < %g" %
@@ -167,9 +176,11 @@ class RoundedCorners(inkex.EffectExtension):
       if len_h1 > dist1: # shorten that handle to dist1, avoid overshooting the point
         handle1[0] = handle1[0] * dist1 / len_h1
         handle1[1] = handle1[1] * dist1 / len_h1
+        prev['hlen'] = dist1
       if len_h2 > dist2: # shorten that handle to dist2, avoid overshooting the point
         handle2[0] = handle2[0] * dist2 / len_h2
         handle2[1] = handle2[1] * dist2 / len_h2
+        next['hlen'] = dist2
 
       return sn
 
@@ -186,11 +197,42 @@ class RoundedCorners(inkex.EffectExtension):
       #
       a = sn['prev']['handle']
       b = sn['next']['handle']
+      a_len = sn['prev']['hlen']
+      b_len = sn['next']['hlen']
       alpha = math.acos( (a[0]*b[0]+a[1]*b[1]) / ( math.sqrt(a[0]*a[0]+a[1]*a[1]) * math.sqrt(b[0]*b[0]+b[1]*b[1]) ) )
       sn['alpha'] = math.degrees(alpha)
 
+      # find the amount to trim back both sides so that a circle of radius self.radius would perfectly fit.
+      if alpha < self.eps: return sp    # path folds back on itself here. No use to apply a radius.
+      if abs(alpha - math.pi/2) < self.eps: return sp   # stretched. radius won't be visible.
+      trim = self.radius / math.tan(0.5 * alpha)
+      sn['trim'] = trim
+      if trim < 0.0:
+        print("Error: at node_idx=%d: angle=%g°, trim is negative: %g" % (node_idx, math.degrees(alpha), trim), file=sys.stderr)
+        return sp
+      if trim > max_trim_factor*min(a_len, b_len):
+        if self.debug:
+          print("Skipping where trim > %g * hlen" % max_trim_factor, file=self.tty)
+          pprint.pprint(sn, stream=self.tty)
+        return sp
+      trim_pt_p = [ sn['x'] + a[0] * trim / a_len, sn['y'] + a[1] * trim / a_len ]
+      trim_pt_n = [ sn['x'] + b[0] * trim / b_len, sn['y'] + b[1] * trim / b_len ]
+      sn['prev']['trim_pt'] = trim_pt_p
+      sn['next']['trim_pt'] = trim_pt_n
+
       pprint.pprint(sn, stream=self.tty)
-      return sp[:node_idx+1] + sp[node_idx:]
+      pprint.pprint(self.cut, stream=self.tty)
+      # we replace the node_idx node by two points pt_a, pt_b.
+      # FIXME: do we need an extra middle point if alpha > 90° ?
+      # dummy variant: a stright line instead of an arc:
+      pt_a = [ sp[node_idx][0][:], trim_pt_p[:], trim_pt_p[:]       ]
+      pt_b = [ trim_pt_n[:],       trim_pt_n[:], sp[node_idx][2][:] ]
+      sp = sp[:node_idx] + [pt_a] + [pt_b] + sp[node_idx+1:]
+
+      # FIXME: Move out the outer handles pt_a[0] and pt_b[2], so that they are never inside.
+      # FIXME: adjust the inner handles pt_a[2] and pt_b[0] so that they shape a nice arc
+
+      return sp
 
 
     def clean_up(self):         # __fini__
