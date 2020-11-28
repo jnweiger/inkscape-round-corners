@@ -7,13 +7,13 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   id="svg8"
-   version="1.1"
-   viewBox="0 0 210 297"
-   height="297mm"
-   width="210mm"
+   inkscape:version="1.0.1 (1.0.1+r74)"
    sodipodi:docname="test.svg"
-   inkscape:version="1.0.1 (1.0.1+r74)">
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg8">
   <defs
      id="defs2" />
   <sodipodi:namedview
@@ -24,27 +24,30 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="2.8"
-     inkscape:cx="530.28748"
+     inkscape:cx="529.93034"
      inkscape:cy="363.88072"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
-     showgrid="false"
-     inkscape:window-width="1086"
-     inkscape:window-height="773"
+     showgrid="true"
+     inkscape:window-width="1146"
+     inkscape:window-height="1037"
      inkscape:window-x="469"
-     inkscape:window-y="127"
+     inkscape:window-y="19"
      inkscape:window-maximized="0"
      showguides="true"
      inkscape:guide-bbox="true">
     <sodipodi:guide
-       position="162.559,195.64401"
+       position="152,197"
        orientation="0,-1"
        id="guide331" />
     <sodipodi:guide
-       position="150.171,195.64401"
+       position="150,194"
        orientation="1,0"
        id="guide333" />
+    <inkscape:grid
+       type="xygrid"
+       id="grid511" />
   </sodipodi:namedview>
   <metadata
      id="metadata5">
@@ -82,8 +85,8 @@
     <path
        id="path16"
        style="fill:#ffffff;stroke:#0000ff;stroke-width:0.0705556;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
-       d="m 123.753,73.1335 c 0,23.2534 38.806,75.3405 38.806,28.2225 -2.11917,-10e-6 1.8581,-2.076616 -12.388,-10e-6 l -2.746,-6.31689 6.186,-6.2239 8.948,-5.0984 h -30 l 19.416,-10.5833 v 0 z"
-       sodipodi:nodetypes="cccccccccc" />
+       d="m 125,70 c 0,20 37.388,77.118 37.388,30 -2.491,0 1.858,-2.0766 -12.388,0 0,0 0,-5.6506 -2.746,-6.3169 l 6.186,-6.2239 8.948,-5.0984 h -30 L 155,70 Z"
+       sodipodi:nodetypes="ccccccccc" />
     <path
        id="path19"
        style="fill:none;stroke:#0000ff;stroke-width:0.07055556;stroke-linejoin:round;stop-color:#000000;stroke-miterlimit:4;stroke-dasharray:none"

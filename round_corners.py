@@ -22,6 +22,12 @@
 # v0.3, 2020-11-21, jw	- find "meta-handles"
 # v0.4, 2020-11-26, jw	- alpha and trim math added. trimming with a striaght line implemented, needs fixes.
 #                         Option 'cut' added.
+# v0.5, 2020-11-28, jw	- Cut operation looks correct. Dummy midpoint for large arcs added, looks wrong, of course.
+#
+#
+# Nasty side-effect: as the node count increases, the list of selected node indices is incorrect
+# afterwards. We have no way to give inkscape an update.
+# Maybe our return code can instruct inkscape to cancel the selection?
 #
 """
 Rounded Corners
@@ -70,7 +76,9 @@ class RoundedCorners(inkex.EffectExtension):
 
 
     def effect(self):
-        if debug: print(self.options.selected_nodes, file=self.tty)     # SvgInputMixin __init__: "id:subpath:position of selected nodes, if any"
+        if debug:
+          # SvgInputMixin __init__: "id:subpath:position of selected nodes, if any"
+          print(self.options.selected_nodes, file=self.tty)
 
         self.radius = math.fabs(self.options.radius)
         self.cut = False
@@ -122,6 +130,27 @@ class RoundedCorners(inkex.EffectExtension):
           For a closed subpath, the last an the first node are identical, then we use the second-last.
           In case of the node_idx being the last node, we already know that the subpath is not closed,
           we use 0 as the next node.
+
+          The direction sn.prev.dir does not really point to the coordinate of the previous node, but to the end of the
+          next-handle of the prvious node. This is the same when there are straight lines. The absence of handles is
+          denoted by having the same coordinates for handle and node.
+          Same for next.dir, it points to the next.prev handle.
+
+          The exact implementation here is:
+          - sn.next.handle is set to a relative vector that is the tangent of the curve towards the next point.
+            we implement four cases:
+            - if neither node nor next have handles, the connection is a straight line, and next.handle points
+              in the direction of the next node itself.
+            - if the curve between node and next is defined by two handles, then sn.next.handle is in the direction of the
+              nodes own handle,
+            - if the curve between node and next is defined one handle at the node itself, then sn.next.handle is in the
+              direction of the nodes own handle,
+            - if the curve between node and next is defined one handle at the next node, then sn.next.handle is in the
+              direction from the node to the end of that other handle.
+          - when trimming back later, we move along that tangent, instead of following the curve.
+            That is an approximation when the segment is curved, and exact when it is straight.
+            (Finding exact candidate points on curved lines that have tangents with the desired circle
+            is beyond me today. Multiple candidates may exist. Any volunteers?)
       """
       prev_idx = node_idx - 1
       if node_idx == 0:
@@ -133,8 +162,8 @@ class RoundedCorners(inkex.EffectExtension):
       t = sp[node_idx]
       p = sp[prev_idx]
       n = sp[next_idx]
-      dir1 = [ p[1][0] - t[1][0], p[1][1] - t[1][1] ]           # direction to the previous node (rel coords)
-      dir2 = [ n[1][0] - t[1][0], n[1][1] - t[1][1] ]           # direction to the next node (rel coords)
+      dir1 = [ p[2][0] - t[1][0], p[2][1] - t[1][1] ]           # direction to the previous node (rel coords)
+      dir2 = [ n[0][0] - t[1][0], n[0][1] - t[1][1] ]           # direction to the next node (rel coords)
       dist1 = math.sqrt(dir1[0]*dir1[0] + dir1[1]*dir1[1])      # distance to the previous node
       dist2 = math.sqrt(dir2[0]*dir2[0] + dir2[1]*dir2[1])      # distance to the next node
       handle1 = [ t[0][0] - t[1][0], t[0][1] - t[1][1] ]        # handle towards previous node (rel coords)
@@ -204,7 +233,7 @@ class RoundedCorners(inkex.EffectExtension):
 
       # find the amount to trim back both sides so that a circle of radius self.radius would perfectly fit.
       if alpha < self.eps: return sp    # path folds back on itself here. No use to apply a radius.
-      if abs(alpha - math.pi/2) < self.eps: return sp   # stretched. radius won't be visible.
+      if abs(alpha - math.pi) < self.eps: return sp   # stretched. radius won't be visible.
       trim = self.radius / math.tan(0.5 * alpha)
       sn['trim'] = trim
       if trim < 0.0:
@@ -223,14 +252,44 @@ class RoundedCorners(inkex.EffectExtension):
       pprint.pprint(sn, stream=self.tty)
       pprint.pprint(self.cut, stream=self.tty)
       # we replace the node_idx node by two points pt_a, pt_b.
-      # FIXME: do we need an extra middle point if alpha > 90° ?
-      # dummy variant: a stright line instead of an arc:
-      pt_a = [ sp[node_idx][0][:], trim_pt_p[:], trim_pt_p[:]       ]
-      pt_b = [ trim_pt_n[:],       trim_pt_n[:], sp[node_idx][2][:] ]
-      sp = sp[:node_idx] + [pt_a] + [pt_b] + sp[node_idx+1:]
+      # We need an extra middle point pt_m if alpha < 90° -- alpha is the angle between the tangents,
+      # as the arc spans the remainder to complete 180° an arc with more than 90° needs the midpoint.
 
-      # FIXME: Move out the outer handles pt_a[0] and pt_b[2], so that they are never inside.
-      # FIXME: adjust the inner handles pt_a[2] and pt_b[0] so that they shape a nice arc
+      # We preserve the endpoints of the two outside handles if they are non-0-length.
+      # We know that such handles are long enough (because of the above max_trim_factor checks)
+      # to not flip around when applying the trim.
+      # We move the endpoints of 0-length outside handles with the point when trimming,
+      # so that they don't end up on the inside.
+      prev_handle = sp[node_idx][0][:]
+      next_handle = sp[node_idx][2][:]
+      if prev_handle == sp[node_idx][1]: prev_handle = trim_pt_p[:]
+      if next_handle == sp[node_idx][1]: next_handle = trim_pt_n[:]
+
+      pt_a = [ prev_handle,  trim_pt_p[:], trim_pt_p[:] ]
+      pt_b = [ trim_pt_n[:], trim_pt_n[:], next_handle  ]
+      if alpha >= 0.5*math.pi or self.cut:
+        sp = sp[:node_idx] + [pt_a] + [pt_b] + sp[node_idx+1:]
+      else:
+        # FIXME: the midpoint coordinates are dummy coordinates, I just want to see that the midpoint is correctly inserted for now.
+        trim_pt_m = [ (trim_pt_n[0]+trim_pt_p[0]+sp[node_idx][1][0])/3, (trim_pt_n[1]+trim_pt_p[1]+sp[node_idx][1][1])/3 ]
+        pt_m = [ trim_pt_m[:], trim_pt_m[:], trim_pt_m[:] ]
+        sp = sp[:node_idx] + [pt_a] + [pt_m] + [pt_b] + sp[node_idx+1:]
+
+      if self.cut == False:
+        if alpha >= 0.5*math.pi:
+          # FIXME: adjust the inner handles pt_a[2] and pt_b[0] so that they shape a nice arc towards each other
+          pass
+        else:
+          # FIXME: adjust the inner handles pt_a[2] and pt_b[0] so that they shape a nice arc towards the midpoint
+          # FIXME: adjust the midpoint handles too
+          pass
+
+      # A closed path is formed by making the last node indentical to the first node.
+      # So, if we trim at the first node, then duplicte that trim on the last node, to keep the loop closed.
+      if node_idx == 0:
+        sp[-1][0] = sp[0][0][:]
+        sp[-1][1] = sp[0][1][:]
+        sp[-1][2] = sp[0][2][:]
 
       return sp
 
