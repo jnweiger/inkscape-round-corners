@@ -15,7 +15,7 @@
 The selected vertex is replaced by two vertices forming 
 a bezier spline that approximates an arc of the give radius.
 
-Version: 0.5
+Version: 1.0
   </label>
   <effect>
     <object-type>path</object-type>

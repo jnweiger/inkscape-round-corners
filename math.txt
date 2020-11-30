@@ -1,0 +1,43 @@
+# from https://de.wikipedia.org/wiki/Trigonometrische_Funktion
+#
+# from https://de.wikipedia.org/wiki/Schnittwinkel_(Geometrie)
+# wikipedia has an abs() in the formula, which extracts the smaller of the two angles.
+# we don't want that. We need to distinguish betwenn spitzwingklig and stumpfwinklig.
+
+# cut-away length 
+# where r is the radious of the desired circle, and alpha is the angle (>0, <pi) under which the lines meet.
+
+l = r / tan(alpha/2)
+
+
+# given two vectors a = (xa, ya) and b = (xb, yb), they meet under angle alpha:
+
+alpha = acos( (xa*xb+ya*yb) / ( sqrt(xa*xa+ya*ya) * sqrt(xb*xb+yb*yb) ) )
+
+
+# https://stackoverflow.com/questions/1734745/how-to-create-circle-with-b%C3%A9zier-curves
+  [To cover a full circle] for Bezier curve with n segments the optimal distance to the control 
+  points, in the sense that the middle of the curve lies on the circle itself, is (4/3)*tan(pi/(2n)).
+
+# https://stackoverflow.com/questions/734076/how-to-best-approximate-a-geometrical-arc-with-a-bezier-curve
+  Per the corrections listed in this blog post, given the start and end points of
+  the arc ([x1, y1] and [x4, y4], respectively) and the the center of the circle
+  ([xc, yc]), one can derive the control points for a cubic bezier curve ([x2,
+  y2] and [x3, y3]) as follows:
+  
+  ax = x1 – xc
+  ay = y1 – yc
+  bx = x4 – xc
+  by = y4 – yc
+  q1 = ax * ax + ay * ay
+  q2 = q1 + ax * bx + ay * by
+  k2 = 4/3 * (√(2 * q1 * q2) – q2) / (ax * by – ay * bx)
+  
+  
+  x2 = xc + ax – k2 * ay
+  y2 = yc + ay + k2 * ax
+  x3 = xc + bx + k2 * by                                 
+  y3 = yc + by – k2 * bx
+
+# https://hansmuller-flex.blogspot.com/2011/10/more-about-approximating-circular-arcs.html?showComment=1498749617507#c2109832351939371205
+

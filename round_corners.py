@@ -25,24 +25,35 @@
 # v0.5, 2020-11-28, jw	- Cut operation looks correct. Dummy midpoint for large arcs added, looks wrong, of course.
 #
 #
-# Nasty side-effect: as the node count increases, the list of selected node indices is incorrect
+# Nasty side-effect: as the node count increases, the list of selected nodes is incorrect
 # afterwards. We have no way to give inkscape an update.
-# Maybe our return code can instruct inkscape to cancel the selection?
 #
 """
 Rounded Corners
 
-This extension finds selected pointy nodes and converts them to a radius.
-The radius is approximated by a bezier spline, as we are doing path operations here...
+This extension operates on selected sharp corner nodes and converts them to a fillet (bevel,chamfer).
+An arc shaped path segment with the given radius is inserted smoothly.
+The fitted arc is approximated by a bezier spline, as we are doing path operations here.
+When the sides at the corner are straight lines, the operation never move the sides, it just shortens them to fit the arc.
+When the sides are curved, the arc is placed on the tanget line, and the curve may thus change in shape.
 
-Written according to https://gitlab.com/inkscape/extensions/-/wikis/home
+Selected smooth nodes are skipped.
+Cases with insufficient space (180deg turn or too short segments/handles) are warned about.
 
 References:
+ - https://gitlab.com/inkscape/extensions/-/wikis/home
  - https://gitlab.com/inkscape/extras/extensions-tutorials/-/blob/master/My-First-Effect-Extension.md
  - https://gitlab.com/inkscape/extensions/-/wikis/uploads/25063b4ae6c3396fcda428105c5cff89/template_effect.zip
  - https://inkscape-extensions-guide.readthedocs.io/en/latest/_modules/inkex/elements.html#ShapeElement.get_path
  - https://inkscape.gitlab.io/extensions/documentation/_modules/inkex/paths.html#CubicSuperPath.to_path
 
+ - https://stackoverflow.com/questions/734076/how-to-best-approximate-a-geometrical-arc-with-a-bezier-curve
+ - https://hansmuller-flex.blogspot.com/2011/10/more-about-approximating-circular-arcs.html
+ - https://itc.ktu.lt/index.php/ITC/article/download/11812/6479         (Riskus' PDF)
+
+The algorithm of arc_bezier_handles() is based on the approach described in:
+A. Riškus, "Approximation of a Cubic Bezier Curve by Circular Arcs and Vice Versa,"
+Information Technology and Control, 35(4), 2006 pp. 371-378.
 """
 
 # python2 compatibility:
@@ -51,9 +62,9 @@ from __future__ import print_function
 import inkex
 import sys, math, pprint
 
-__version__ = '0.4'     # Keep in sync with round_corners.inx line 16
+__version__ = '1.0'     # Keep in sync with round_corners.inx line 16
 
-debug = True
+debug = False           # True: babble on controlling tty
 max_trim_factor = 0.5   # 0.5: can cut half of a segment length or handle length away for rounding a corner
 
 class RoundedCorners(inkex.EffectExtension):
@@ -70,6 +81,11 @@ class RoundedCorners(inkex.EffectExtension):
       self.nodes_inserted = {}
       self.eps = 0.00001                # avoid division by zero
       self.radius = None
+      self.max_trim_factor = max_trim_factor
+
+      self.skipped_degenerated = 0      # not a useful corner (e.g. 180deg corner)
+      self.skipped_small_count = 0      # not enough room for arc
+      self.skipped_small_len = 1e99     # record the shortest handle (or segment) when skipping.
 
       pars.add_argument("--radius", type=float, default=2.0, help="Radius [mm] to round selected vertices")
       pars.add_argument("--cut", type=str, default="false", help="cut corners with straight lines (instead of fitting an arc)")
@@ -86,6 +102,11 @@ class RoundedCorners(inkex.EffectExtension):
           self.cut = True
         if len(self.options.selected_nodes) < 1:
           raise inkex.AbortExtension("Need at least one selected node in the path. Go to edit path, click a corner, then try again.")
+        if len(self.options.selected_nodes) == 1:
+          # when we only trim one node, we can eat up almost everything,
+          # no need to leave room for rounding neighbour nodes.
+          self.max_trim_factor = 0.95
+
         for node in sorted(self.options.selected_nodes):
           ## we walk through the list sorted, so that node indices are processed within a subpath in ascending numeric order.
           ## that makes adjusting index offsets after node inserts easier.
@@ -156,7 +177,17 @@ class RoundedCorners(inkex.EffectExtension):
       if node_idx == 0:
         prev_idx = len(sp) - 1
         # deep compare. all elements in sub arrays are compared for numerical equality
-        if sp[node_idx] == sp[prev_idx]: prev_idx = prev_idx - 1
+        if sp[node_idx] == sp[prev_idx]:
+          prev_idx = prev_idx - 1
+        else:
+          self.skipped_degenerated += 1         # path ends here.
+          return None
+
+      # if debug: pprint.pprint({'node_idx': node_idx, 'len(sp)':len(sp), 'sp': sp}, stream=self.tty)
+      if node_idx == len(sp)-1:
+        self.skipped_degenerated += 1           # path ends here. On a closed loop, we can never select the last point.
+        return None
+
       next_idx = node_idx + 1
       if next_idx >= len(sp): next_idx = 0
       t = sp[node_idx]
@@ -176,14 +207,21 @@ class RoundedCorners(inkex.EffectExtension):
       sn = { 'idx': node_idx, 'prev': prev, 'next': next, 'x': t[1][0], 'y': t[1][1] }
 
       if dist1 < self.radius:
-        print("subpath node_idx=%d, dist to prev(%d) is smaller than radius: %g < %g" %
-              (node_idx, prev_idx, dist1, self.radius), file=sys.stderr)
-        pprint.pprint(sn, stream=sys.stderr)
+        if debug:
+          print("subpath node_idx=%d, dist to prev(%d) is smaller than radius: %g < %g" %
+                (node_idx, prev_idx, dist1, self.radius), file=sys.stderr)
+          pprint.pprint(sn, stream=sys.stderr)
+        if self.skipped_small_len > dist1: self.skipped_small_len = dist1
+        skipped_small_count += 1
         return None
+
       if dist2 < self.radius:
-        print("subpath node_idx=%d, dist to next(%d) is smaller than radius: %g < %g" %
-              (node_idx, next_idx, dist2, self.radius), file=sys.stderr)
-        pprint.pprint(sn, stream=sys.stderr)
+        if debug:
+          print("subpath node_idx=%d, dist to next(%d) is smaller than radius: %g < %g" %
+                (node_idx, next_idx, dist2, self.radius), file=sys.stderr)
+          pprint.pprint(sn, stream=sys.stderr)
+        if self.skipped_small_len > dist2: self.skipped_small_len = dist2
+        skipped_small_count += 1
         return None
 
       len_h1 = math.sqrt(handle1[0]*handle1[0] + handle1[1]*handle1[1])
@@ -192,14 +230,20 @@ class RoundedCorners(inkex.EffectExtension):
       next['hlen'] = len_h2
 
       if len_h1 < self.radius:
-        print("subpath node_idx=%d, handle to prev(%d) is shorter than radius: %g < %g" %
-              (node_idx, prev_idx, len_h1, self.radius), file=sys.stderr)
-        pprint.pprint(sn, stream=sys.stderr)
+        if debug:
+          print("subpath node_idx=%d, handle to prev(%d) is shorter than radius: %g < %g" %
+                (node_idx, prev_idx, len_h1, self.radius), file=sys.stderr)
+          pprint.pprint(sn, stream=sys.stderr)
+        if self.skipped_small_len > len_h1: self.skipped_small_len = len_h1
+        skipped_small_count += 1
         return None
       if len_h2 < self.radius:
-        print("subpath node_idx=%d, handle to next(%d) is shorter than radius: %g < %g" %
-              (node_idx, next_idx, len_h2, self.radius), file=sys.stderr)
-        pprint.pprint(sn, stream=sys.stderr)
+        if debug:
+          print("subpath node_idx=%d, handle to next(%d) is shorter than radius: %g < %g" %
+                (node_idx, next_idx, len_h2, self.radius), file=sys.stderr)
+          pprint.pprint(sn, stream=sys.stderr)
+        if self.skipped_small_len > len_h2: self.skipped_small_len = len_h2
+        skipped_small_count += 1
         return None
 
       if len_h1 > dist1: # shorten that handle to dist1, avoid overshooting the point
@@ -212,6 +256,64 @@ class RoundedCorners(inkex.EffectExtension):
         next['hlen'] = dist2
 
       return sn
+
+
+    def arc_c_m_from_super_node(self, s):
+      """
+      Given the supernode s and the radius self.radius, we compute and return two points:
+      c, the center of the arc and m, the midpoint of the arc.
+
+      Method used:
+      - construct the ray c_m_vec that runs though the original point p=[x,y] through c and m.
+      - next.trim_pt, [x,y] and c form a rectangular triangle. Thus we can
+        compute cdist as the length of the hypothenuses under trim and radius.
+      - c is then cdist away from [x,y] along the vector c_m_vec.
+      - m is closer to [x,y] than c by exactly radius.
+      """
+
+      a = [ s['prev']['trim_pt'][0] - s['x'], s['prev']['trim_pt'][1] - s['y'] ]
+      b = [ s['next']['trim_pt'][0] - s['x'], s['next']['trim_pt'][1] - s['y'] ]
+
+      c_m_vec = [ a[0] + b[0],
+                  a[1] + b[1] ]
+      l = math.sqrt( c_m_vec[0]*c_m_vec[0] + c_m_vec[1]*c_m_vec[1] )
+
+      cdist = math.sqrt( self.radius*self.radius + s['trim']*s['trim'] )    # distance [x,y] to circle center c.
+
+      c = [ s['x'] + cdist * c_m_vec[0] / l,                      # circle center
+            s['y'] + cdist * c_m_vec[1] / l ]
+
+      m = [ s['x'] + (cdist-self.radius) * c_m_vec[0] / l,        # spline midpoint
+            s['y'] + (cdist-self.radius) * c_m_vec[1] / l ]
+
+      return (c, m)
+
+
+    def arc_bezier_handles(self, p1, p4, c):
+      """
+      Compute the control points p2 and p3 between points p1 and p4, so that the cubic bezier spline
+      defined by p1,p2,p3,p2 approximates an arc around center c
+
+      Algorithm based on Aleksas Riškus and Hans Muller. Sorry Pomax, saw your works too, but did not use any.
+      """
+      x1,y1 = p1
+      x4,y4 = p4
+      xc,yc = c
+
+      ax = x1 - xc
+      ay = y1 - yc
+      bx = x4 - xc
+      by = y4 - yc
+      q1 = ax * ax + ay * ay
+      q2 = q1 + ax * bx + ay * by
+      k2 = 4./3. * (math.sqrt(2 * q1 * q2) - q2) / (ax * by - ay * bx)
+
+      x2 = xc + ax - k2 * ay
+      y2 = yc + ay + k2 * ax
+      x3 = xc + bx + k2 * by
+      y3 = yc + by - k2 * bx
+
+      return ([x2, y2], [x3, y3])
 
 
     def subpath_round_corner(self, sp, node_idx):
@@ -228,61 +330,78 @@ class RoundedCorners(inkex.EffectExtension):
       b = sn['next']['handle']
       a_len = sn['prev']['hlen']
       b_len = sn['next']['hlen']
-      alpha = math.acos( (a[0]*b[0]+a[1]*b[1]) / ( math.sqrt(a[0]*a[0]+a[1]*a[1]) * math.sqrt(b[0]*b[0]+b[1]*b[1]) ) )
+      try:
+        alpha = math.acos( (a[0]*b[0]+a[1]*b[1]) / ( math.sqrt(a[0]*a[0]+a[1]*a[1]) * math.sqrt(b[0]*b[0]+b[1]*b[1]) ) )
+      except:
+        # Division by 0 error means path folds back on itself here. No space to apply a radius between the segments.
+        self.skipped_degenerated += 1
+        return sp
+
       sn['alpha'] = math.degrees(alpha)
 
       # find the amount to trim back both sides so that a circle of radius self.radius would perfectly fit.
-      if alpha < self.eps: return sp    # path folds back on itself here. No use to apply a radius.
-      if abs(alpha - math.pi) < self.eps: return sp   # stretched. radius won't be visible.
+      if alpha < self.eps:
+        # path folds back on itself here. No space to apply a radius between the segments.
+        self.skipped_degenerated += 1
+        return sp
+      if abs(alpha - math.pi) < self.eps:
+        # stretched. radius won't be visible, that is just fine. No need to warn about that.
+        return sp
       trim = self.radius / math.tan(0.5 * alpha)
       sn['trim'] = trim
       if trim < 0.0:
         print("Error: at node_idx=%d: angle=%g°, trim is negative: %g" % (node_idx, math.degrees(alpha), trim), file=sys.stderr)
         return sp
-      if trim > max_trim_factor*min(a_len, b_len):
-        if self.debug:
-          print("Skipping where trim > %g * hlen" % max_trim_factor, file=self.tty)
+      if trim > self.max_trim_factor*min(a_len, b_len):
+        if debug:
+          print("Skipping where trim > %g * hlen" % self.max_trim_factor, file=self.tty)
           pprint.pprint(sn, stream=self.tty)
+        if self.skipped_small_len > self.max_trim_factor*min(a_len, b_len):
+          self.skipped_small_len = self.max_trim_factor*min(a_len, b_len)
+        self.skipped_small_count += 1
         return sp
       trim_pt_p = [ sn['x'] + a[0] * trim / a_len, sn['y'] + a[1] * trim / a_len ]
       trim_pt_n = [ sn['x'] + b[0] * trim / b_len, sn['y'] + b[1] * trim / b_len ]
       sn['prev']['trim_pt'] = trim_pt_p
       sn['next']['trim_pt'] = trim_pt_n
 
-      pprint.pprint(sn, stream=self.tty)
-      pprint.pprint(self.cut, stream=self.tty)
-      # we replace the node_idx node by two points pt_a, pt_b.
-      # We need an extra middle point pt_m if alpha < 90° -- alpha is the angle between the tangents,
+      if debug:
+        pprint.pprint(sn, stream=self.tty)
+        pprint.pprint(self.cut, stream=self.tty)
+      # We replace the node_idx node by two nodes node_a, node_b.
+      # We need an extra middle node node_m if alpha < 90° -- alpha is the angle between the tangents,
       # as the arc spans the remainder to complete 180° an arc with more than 90° needs the midpoint.
 
       # We preserve the endpoints of the two outside handles if they are non-0-length.
       # We know that such handles are long enough (because of the above max_trim_factor checks)
       # to not flip around when applying the trim.
-      # We move the endpoints of 0-length outside handles with the point when trimming,
+      # But we move the endpoints of 0-length outside handles with the point when trimming,
       # so that they don't end up on the inside.
       prev_handle = sp[node_idx][0][:]
       next_handle = sp[node_idx][2][:]
       if prev_handle == sp[node_idx][1]: prev_handle = trim_pt_p[:]
       if next_handle == sp[node_idx][1]: next_handle = trim_pt_n[:]
 
-      pt_a = [ prev_handle,  trim_pt_p[:], trim_pt_p[:] ]
-      pt_b = [ trim_pt_n[:], trim_pt_n[:], next_handle  ]
-      if alpha >= 0.5*math.pi or self.cut:
-        sp = sp[:node_idx] + [pt_a] + [pt_b] + sp[node_idx+1:]
-      else:
-        # FIXME: the midpoint coordinates are dummy coordinates, I just want to see that the midpoint is correctly inserted for now.
-        trim_pt_m = [ (trim_pt_n[0]+trim_pt_p[0]+sp[node_idx][1][0])/3, (trim_pt_n[1]+trim_pt_p[1]+sp[node_idx][1][1])/3 ]
-        pt_m = [ trim_pt_m[:], trim_pt_m[:], trim_pt_m[:] ]
-        sp = sp[:node_idx] + [pt_a] + [pt_m] + [pt_b] + sp[node_idx+1:]
+      p1 = trim_pt_p[:]
+      p7 = trim_pt_n[:]
+      arc_c, p4 = self.arc_c_m_from_super_node(sn)
+      node_a = [ prev_handle, p1[:], p1[:] ]    # deep copy, as we may want to modify the second handle later
+      node_b = [ p7[:], p7[:], next_handle ]    # deep copy, as we may want to modify the first handle later
 
-      if self.cut == False:
-        if alpha >= 0.5*math.pi:
-          # FIXME: adjust the inner handles pt_a[2] and pt_b[0] so that they shape a nice arc towards each other
-          pass
-        else:
-          # FIXME: adjust the inner handles pt_a[2] and pt_b[0] so that they shape a nice arc towards the midpoint
-          # FIXME: adjust the midpoint handles too
-          pass
+      if alpha >= 0.5*math.pi or self.cut:
+        if self.cut == False:
+          # p3,p4,p5 do not exist, we need no midpoint
+          p2, p6 = self.arc_bezier_handles(p1, p7, arc_c)
+          node_a[2] = p2
+          node_b[0] = p6
+        sp = sp[:node_idx] + [node_a] + [node_b] + sp[node_idx+1:]
+      else:
+        p2, p3 = self.arc_bezier_handles(p1, p4, arc_c)
+        p5, p6 = self.arc_bezier_handles(p4, p7, arc_c)
+        node_m = [ p3, p4, p5 ]
+        node_a[2] = p2
+        node_b[0] = p6
+        sp = sp[:node_idx] + [node_a] + [node_m] + [node_b] + sp[node_idx+1:]
 
       # A closed path is formed by making the last node indentical to the first node.
       # So, if we trim at the first node, then duplicte that trim on the last node, to keep the loop closed.
@@ -298,6 +417,10 @@ class RoundedCorners(inkex.EffectExtension):
       if self.tty is not None:
         self.tty.close()
       super(RoundedCorners, self).clean_up()
+      if self.skipped_degenerated:
+        print("Warning: Skipped %d degenerated nodes (180° turn or end of path?).\n" % self.skipped_degenerated, file=sys.stderr)
+      if self.skipped_small_count:
+        print("Warning: Skipped %d nodes with not enough space (Value %g is too small. Try a smaller radius?).\n" % (self.skipped_small_count, self.skipped_small_len), file=sys.stderr)
 
 
 if __name__ == '__main__':

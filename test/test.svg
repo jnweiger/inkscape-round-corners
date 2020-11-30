@@ -23,20 +23,26 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="2.8"
-     inkscape:cx="529.93034"
-     inkscape:cy="363.88072"
+     inkscape:zoom="4.3459265"
+     inkscape:cx="544.74333"
+     inkscape:cy="299.94634"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
-     showgrid="true"
-     inkscape:window-width="1146"
+     showgrid="false"
+     inkscape:window-width="1400"
      inkscape:window-height="1037"
-     inkscape:window-x="469"
+     inkscape:window-x="516"
      inkscape:window-y="19"
      inkscape:window-maximized="0"
      showguides="true"
-     inkscape:guide-bbox="true">
+     inkscape:guide-bbox="true"
+     inkscape:snap-center="false"
+     inkscape:object-paths="false"
+     inkscape:snap-bbox="true"
+     inkscape:bbox-nodes="false"
+     inkscape:snap-bbox-edge-midpoints="true"
+     inkscape:snap-smooth-nodes="true">
     <sodipodi:guide
        position="152,197"
        orientation="0,-1"
@@ -82,6 +88,57 @@
        inkscape:transform-center-x="4.1592191"
        inkscape:transform-center-y="-1.6948121"
        d="M 108.88368,136.2575 86.297785,127.12398 69.88474,145.1283 71.591813,120.82543 49.396773,110.77934 73.037695,104.89286 75.73345,80.67971 88.63727,101.34454 112.49838,96.426081 96.832456,115.08413 Z" />
+    <rect
+       style="fill:none;stroke:#00ff00;stroke-width:0.0499999;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
+       id="rect1005"
+       width="2"
+       height="2"
+       x="84.487244"
+       y="135.76932"
+       inkscape:transform-center-x="-1.3571151"
+       inkscape:transform-center-y="0.39779662"
+       transform="rotate(-28.663334)" />
+    <ellipse
+       style="fill:none;stroke:#00ff00;stroke-width:0.0499999;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
+       id="path1140"
+       cx="140.21599"
+       cy="80.360794"
+       rx="1.9999912"
+       ry="2.0000088" />
+    <path
+       id="rect1007"
+       style="fill:none;stroke:#00ff00;stroke-width:0.0499999;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
+       inkscape:transform-center-x="-0.99999735"
+       inkscape:transform-center-y="-0.99999172"
+       transform="rotate(-89.999748)"
+       d="m -82.360176,140.21635 h 2 v 2 h -2 z" />
+    <ellipse
+       style="fill:none;stroke:#00ff00;stroke-width:0.0499999;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
+       id="path1142"
+       cx="144.13"
+       cy="79.360802"
+       rx="2.9999866"
+       ry="3.0000131" />
+    <rect
+       style="fill:none;stroke:#00ff00;stroke-width:0.0499999;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
+       id="rect1088"
+       width="3"
+       height="3"
+       x="88.400986"
+       y="135.76904"
+       inkscape:transform-center-x="-1.3571151"
+       inkscape:transform-center-y="0.39779662"
+       transform="rotate(-28.663334)" />
+    <rect
+       style="fill:none;stroke:#00ff00;stroke-width:0.0499999;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
+       id="rect1090"
+       width="3"
+       height="3"
+       x="-82.360168"
+       y="144.13036"
+       inkscape:transform-center-x="-0.99999735"
+       inkscape:transform-center-y="-0.99999172"
+       transform="rotate(-89.999748)" />
     <path
        id="path16"
        style="fill:#ffffff;stroke:#0000ff;stroke-width:0.0705556;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
@@ -263,5 +320,26 @@
        sodipodi:end="0.26179939"
        sodipodi:arc-type="slice"
        d="m 220.52871,-25.009182 a 22.38702,22.38702 0 0 1 -0.76282,5.794187 l -21.6242,-5.794187 z" />
+    <path
+       id="path1093"
+       style="fill:none;stroke:#00ff00;stroke-width:0.0499999;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
+       inkscape:transform-center-x="-0.99999735"
+       inkscape:transform-center-y="-0.99999172"
+       d="m 140.4385,86.287145 -2.15996,-5.43128 3.39181,4.823136 -1.35758,-1.052053 z"
+       sodipodi:nodetypes="ccccc" />
+    <ellipse
+       style="fill:none;stroke:#00ff00;stroke-width:0.0499999;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
+       id="ellipse1275"
+       cx="126.99999"
+       cy="72.000008"
+       rx="1.9999912"
+       ry="2.0000088" />
+    <ellipse
+       style="fill:none;stroke:#00ff00;stroke-width:0.0499999;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000"
+       id="ellipse1277"
+       cx="127.99998"
+       cy="73.000015"
+       rx="2.9999866"
+       ry="3.0000131" />
   </g>
 </svg>
