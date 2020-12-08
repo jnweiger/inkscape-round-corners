@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
-  <name>Round Corners</name><!-- for inkscape 1.0.x -->
+  <name>Round Corners</name><!-- backport for inkscape 0.92.x -->
   <id>org.inkscape.jnweiger.round_corners</id>
   <param name="radius" type="float" gui-text="Radius: [mm]" precision="2" min="0.001" max="999.99">2.0</param>
   <param name="method" type="enum" gui-text="Corner type:">
@@ -9,7 +9,7 @@
     <item value="line">Line </item>
   </param>
   <!-- Keep in sync with round_corners.py line 38 __version__ = ... -->
-  <label xml:space="preserve">
+  <param name="description" type="description" xml:space="preserve">
 
 * Select a path in edit mode.
 * Select one or more vertices.
@@ -23,8 +23,8 @@ a bezier spline that approximates an arc of the give radius.
 When the corner type is set to 'line', the arc is
 replaced with a straight cut.
 
-Version: 1.1
-  </label>
+Version: 1.1 (backport for inkscape 0.92.x)
+  </param>
   <effect>
     <object-type>path</object-type>
     <effects-menu>
@@ -32,6 +32,6 @@ Version: 1.1
     </effects-menu>
   </effect>
   <script>
-    <command location="inx" interpreter="python">round_corners.py</command>
+    <command reldir="extensions" interpreter="python">round_corners_092.py</command>
   </script>
 </inkscape-extension>

@@ -23,6 +23,9 @@
 # v0.4, 2020-11-26, jw	- alpha and trim math added. trimming with a striaght line implemented, needs fixes.
 #                         Option 'cut' added.
 # v0.5, 2020-11-28, jw	- Cut operation looks correct. Dummy midpoint for large arcs added, looks wrong, of course.
+# v1.0, 2020-11-30, jw	- Code completed. Bot cut and arc work fine.
+# v1.1, 2020-12-07, jw	- Replaced boolean 'cut' with a method selector 'arc'/'line'. Added round_corners_092.inx
+#                         and started backport in round_corners.py -- attempting to run the same code everywhere.
 #
 #
 # Nasty side-effect: as the node count increases, the list of selected nodes is incorrect
@@ -62,6 +65,11 @@ from __future__ import print_function
 import inkex
 import sys, math, pprint
 
+if 'EffectExtension' not in inkex.__dict__:     # inkscape 0.92.x compatibility
+  inkex.EffectExtension = inkex.Effect
+  inkex.EffectExtension.run = inkex.Effect.affect
+
+
 __version__ = '1.0'     # Keep in sync with round_corners.inx line 16
 
 debug = False           # True: babble on controlling tty
@@ -88,7 +96,7 @@ class RoundedCorners(inkex.EffectExtension):
       self.skipped_small_len = 1e99     # record the shortest handle (or segment) when skipping.
 
       pars.add_argument("--radius", type=float, default=2.0, help="Radius [mm] to round selected vertices")
-      pars.add_argument("--cut", type=str, default="false", help="cut corners with straight lines (instead of fitting an arc)")
+      pars.add_argument("--method", type=str, default="arc", help="operation: one of 'arc' (default), 'arc+cross', 'line'")
 
 
     def effect(self):
@@ -98,7 +106,7 @@ class RoundedCorners(inkex.EffectExtension):
 
         self.radius = math.fabs(self.options.radius)
         self.cut = False
-        if self.options.cut in ('True', 'TRUE', 'true', '1', 'Yes', 'YES', 'yes'):
+        if self.options.method in ('line'):
           self.cut = True
         if len(self.options.selected_nodes) < 1:
           raise inkex.AbortExtension("Need at least one selected node in the path. Go to edit path, click a corner, then try again.")
