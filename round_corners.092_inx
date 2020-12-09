@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
-  <name>Round Corners</name><!-- backport for inkscape 0.92.x -->
-  <id>org.inkscape.jnweiger.round_corners</id>
+  <name>Round Corners (backport)</name><!-- backport for inkscape 0.92.x -->
+  <id>org.inkscape.jnweiger.round_corners_092</id>
   <param name="radius" type="float" gui-text="Radius: [mm]" precision="2" min="0.001" max="999.99">2.0</param>
   <param name="method" type="enum" gui-text="Corner type:">
     <item value="arc">Arc </item>
@@ -23,7 +23,7 @@ a bezier spline that approximates an arc of the give radius.
 When the corner type is set to 'line', the arc is
 replaced with a straight cut.
 
-Version: 1.1 (backport for inkscape 0.92.x)
+Version: 1.2 (backport for inkscape 0.92.x)
   </param>
   <effect>
     <object-type>path</object-type>

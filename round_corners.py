@@ -26,7 +26,8 @@
 # v1.0, 2020-11-30, jw	- Code completed. Bot cut and arc work fine.
 # v1.1, 2020-12-07, jw	- Replaced boolean 'cut' with a method selector 'arc'/'line'. Added round_corners_092.inx
 #                         and started backport in round_corners.py -- attempting to run the same code everywhere.
-#
+# v1.2, 2020-12-08, jw  - Backporting continued: option parser hack added.
+#                         UNFINISHED: self.svg is still missing...
 #
 # Nasty side-effect: as the node count increases, the list of selected nodes is incorrect
 # afterwards. We have no way to give inkscape an update.
@@ -65,12 +66,50 @@ from __future__ import print_function
 import inkex
 import sys, math, pprint
 
-if 'EffectExtension' not in inkex.__dict__:     # inkscape 0.92.x compatibility
+if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPATIBILITY HACK
+  """ OOPS, the code **after** this if conditional is meant for inkscape 1.0.1,
+      but we seem to be running under inkscape 0.92.x today.
+      Well, to make the new code work in the old environment, in here, we do the
+      exact oposite of 1.0.1's /usr/share/inkscape/extensions/inkex/deprecated.py
+      (which would make old code run in the new 1.0.1 environment.)
+  """
+  def my_add_argument(pars, *args, **kw):
+    # convert type method into type string as needed, see deprecated.py def add_option()
+    if 'type' in kw:
+      kw['type'] = { str: 'string', float: 'float', int: 'int', bool: 'inkbool' }.get(kw['type'])
+    if 'action' not in kw:
+      kw['action'] = 'store'
+    pars.add_option(*args, **kw)
+
+
+  def my_init(self):
+    from types import MethodType
+
+    ## to backport the option parsing, we wrap the __init__ method and introduce a compatibility shim.
+    # we must call add_arguments(), that seems to be done by EffectExtension.__init__() which we don't have.
+    # have Effect.__init__() instead, which expects to be subclassed. We cannot subclass, as we don't want to
+    # touch the class code at all. Instead exchange the Effect.__init__() with this wrapper, to hook in
+    # new style semantics into the old style inkex.Effect superclass.
+    # We also we must convert from new style pars.add_argument() calls to old style
+    # self.OptionParser.add_option() -- this is done by the my_add_argument wrapper.
+    #
+    self.orig_init()                                    # this adds the OptionParser to self ...
+
+    # and we add an add_argument method to the OptionParser. A direct assignment would discard the indirect object.
+    self.OptionParser.add_argument = MethodType(my_add_argument, self.OptionParser)
+
+    # so that we can now call the new style add_arguments() method
+    self.add_arguments(self.OptionParser)
+
+
   inkex.EffectExtension = inkex.Effect
+  inkex.EffectExtension.orig_init = inkex.EffectExtension.__init__
+  inkex.EffectExtension.__init__ = my_init
   inkex.EffectExtension.run = inkex.Effect.affect
 
+# END OF INKSCAPE 0.92.X COMPATIBILITY HACK
 
-__version__ = '1.0'     # Keep in sync with round_corners.inx line 16
+__version__ = '1.2'     # Keep in sync with round_corners.inx line 16
 
 debug = False           # True: babble on controlling tty
 max_trim_factor = 0.5   # 0.5: can cut half of a segment length or handle length away for rounding a corner
@@ -103,6 +142,7 @@ class RoundedCorners(inkex.EffectExtension):
         if debug:
           # SvgInputMixin __init__: "id:subpath:position of selected nodes, if any"
           print(self.options.selected_nodes, file=self.tty)
+        print(self.options, file=sys.stderr)    # UNFINISHED
 
         self.radius = math.fabs(self.options.radius)
         self.cut = False
