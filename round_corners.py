@@ -26,7 +26,7 @@
 # v1.0, 2020-11-30, jw	- Code completed. Bot cut and arc work fine.
 # v1.1, 2020-12-07, jw	- Replaced boolean 'cut' with a method selector 'arc'/'line'. Added round_corners_092.inx
 #                         and started backport in round_corners.py -- attempting to run the same code everywhere.
-# v1.2, 2020-12-08, jw  - Backporting continued: option parser hack added.
+# v1.2, 2020-12-08, jw  - Backporting continued: option parser hack added. Started effect_wrapper() to prepare self.svg
 #                         UNFINISHED: self.svg is still missing...
 #
 # Nasty side-effect: as the node count increases, the list of selected nodes is incorrect
@@ -72,8 +72,25 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
       Well, to make the new code work in the old environment, in here, we do the
       exact oposite of 1.0.1's /usr/share/inkscape/extensions/inkex/deprecated.py
       (which would make old code run in the new 1.0.1 environment.)
+
+      old and new:
+      - self.options= {'selected_nodes': ['path1684:0:2', 'path1684:0:0'], 'radius': 2.0, 'ids': ['path1684'], 'method': 'arc'}
+
+      old style:
+      - self.document= <lxml.etree._ElementTree object at 0x7f5c2b1a77e8>
+      - self.document.getroot() =  <Element {http://www.w3.org/2000/svg}svg at 0x7f5c2b1a78c0>
+      - self.document.getElementById('path1684') = AttributeError: 'lxml.etree._ElementTree' object has no attribute 'getElementById'
+
+      new style:
+      - self.svg= <class 'inkex.elements._svg.SvgDocumentElement'>
+      - self.svg.getElementById('path1684') =  <class 'inkex.elements._polygons.PathElement'>
+        ## maybe not even based on an lxml ElephantTree any more? Let's check the new code...
   """
-  def my_add_argument(pars, *args, **kw):
+  def compat_add_argument(pars, *args, **kw):
+    """
+       Provide an add_argument() method so that add_argument() can use the new api,
+       but implemented in terms of the old api.
+    """
     # convert type method into type string as needed, see deprecated.py def add_option()
     if 'type' in kw:
       kw['type'] = { str: 'string', float: 'float', int: 'int', bool: 'inkbool' }.get(kw['type'])
@@ -82,7 +99,13 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
     pars.add_option(*args, **kw)
 
 
-  def my_init(self):
+  def effect_wrapper(self):
+    print("effect_wrapper: self.document=", self.document, file=sys.stderr)
+    ## TODO: it's an ElephantTree, construct self.svg from that now.
+    self.wrapped_effect()
+
+
+  def init_wrapper(self):
     from types import MethodType
 
     ## to backport the option parsing, we wrap the __init__ method and introduce a compatibility shim.
@@ -91,23 +114,30 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
     # touch the class code at all. Instead exchange the Effect.__init__() with this wrapper, to hook in
     # new style semantics into the old style inkex.Effect superclass.
     # We also we must convert from new style pars.add_argument() calls to old style
-    # self.OptionParser.add_option() -- this is done by the my_add_argument wrapper.
+    # self.OptionParser.add_option() -- this is done by the compat_add_argument wrapper.
     #
-    self.orig_init()                                    # this adds the OptionParser to self ...
+    self.wrapped_init()                                    # call early, as it adds the OptionParser to self ...
 
-    # and we add an add_argument method to the OptionParser. A direct assignment would discard the indirect object.
-    self.OptionParser.add_argument = MethodType(my_add_argument, self.OptionParser)
+    # We add an add_argument method to the OptionParser. A direct assignment would discard the indirect object.
+    self.OptionParser.add_argument = MethodType(compat_add_argument, self.OptionParser)
 
     # so that we can now call the new style add_arguments() method
     self.add_arguments(self.OptionParser)
 
+    # self.document is not loaded yet, so we must prepare self.svg later.
+    self.run = self.affect      # MethodType(my_run, self) does not help. self.document is still none inside my_run()
+
+    # try wrap our own effect() method, that must be late enough...
+    self.wrapped_effect = self.effect
+    self.effect = MethodType(effect_wrapper, self)
+
 
   inkex.EffectExtension = inkex.Effect
-  inkex.EffectExtension.orig_init = inkex.EffectExtension.__init__
-  inkex.EffectExtension.__init__ = my_init
-  inkex.EffectExtension.run = inkex.Effect.affect
+  inkex.EffectExtension.wrapped_init = inkex.EffectExtension.__init__
+  inkex.EffectExtension.__init__ = init_wrapper
 
 # END OF INKSCAPE 0.92.X COMPATIBILITY HACK
+
 
 __version__ = '1.2'     # Keep in sync with round_corners.inx line 16
 
@@ -142,7 +172,6 @@ class RoundedCorners(inkex.EffectExtension):
         if debug:
           # SvgInputMixin __init__: "id:subpath:position of selected nodes, if any"
           print(self.options.selected_nodes, file=self.tty)
-        print(self.options, file=sys.stderr)    # UNFINISHED
 
         self.radius = math.fabs(self.options.radius)
         self.cut = False
