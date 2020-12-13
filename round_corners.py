@@ -344,7 +344,7 @@ class RoundedCorners(inkex.EffectExtension):
                 (node_idx, prev_idx, dist1, self.radius), file=sys.stderr)
           pprint.pprint(sn, stream=sys.stderr)
         if self.skipped_small_len > dist1: self.skipped_small_len = dist1
-        skipped_small_count += 1
+        self.skipped_small_count += 1
         return None
 
       if dist2 < self.radius:
@@ -353,7 +353,7 @@ class RoundedCorners(inkex.EffectExtension):
                 (node_idx, next_idx, dist2, self.radius), file=sys.stderr)
           pprint.pprint(sn, stream=sys.stderr)
         if self.skipped_small_len > dist2: self.skipped_small_len = dist2
-        skipped_small_count += 1
+        self.skipped_small_count += 1
         return None
 
       len_h1 = math.sqrt(handle1[0]*handle1[0] + handle1[1]*handle1[1])
@@ -367,7 +367,7 @@ class RoundedCorners(inkex.EffectExtension):
                 (node_idx, prev_idx, len_h1, self.radius), file=sys.stderr)
           pprint.pprint(sn, stream=sys.stderr)
         if self.skipped_small_len > len_h1: self.skipped_small_len = len_h1
-        skipped_small_count += 1
+        self.skipped_small_count += 1
         return None
       if len_h2 < self.radius:
         if debug:
@@ -375,7 +375,7 @@ class RoundedCorners(inkex.EffectExtension):
                 (node_idx, next_idx, len_h2, self.radius), file=sys.stderr)
           pprint.pprint(sn, stream=sys.stderr)
         if self.skipped_small_len > len_h2: self.skipped_small_len = len_h2
-        skipped_small_count += 1
+        self.skipped_small_count += 1
         return None
 
       if len_h1 > dist1: # shorten that handle to dist1, avoid overshooting the point
