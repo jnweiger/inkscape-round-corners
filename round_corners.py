@@ -27,7 +27,7 @@
 # v1.1, 2020-12-07, jw	- Replaced boolean 'cut' with a method selector 'arc'/'line'. Added round_corners_092.inx
 #                         and started backport in round_corners.py -- attempting to run the same code everywhere.
 # v1.2, 2020-12-08, jw  - Backporting continued: option parser hack added. Started effect_wrapper() to prepare self.svg
-#                         UNFINISHED: self.svg is still missing...
+#                         UNFINISHED: self.svg only has an empty getElementById() method.
 #
 # Nasty side-effect: as the node count increases, the list of selected nodes is incorrect
 # afterwards. We have no way to give inkscape an update.
@@ -100,8 +100,22 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
 
 
   def effect_wrapper(self):
-    print("effect_wrapper: self.document=", self.document, file=sys.stderr)
-    ## TODO: it's an ElephantTree, construct self.svg from that now.
+
+    class DummySvgDocumentElement():
+      """
+         A cheap plastic immitation if inkscape-1.0.1's SvgDocumentElement() class.
+         This adds the svg object to the old api, so that new style code can run.
+         Note: only a very minimal set of methods is supported, and those that are, in a very primitive way.
+      """
+      def __init__(self, document):
+        self._svg = document
+
+      def getElementById(self, id):
+        print("DummySvgDocumentElement.getElementById: document=", self._svg, " ID=", id, file=sys.stderr)
+        assert(False)
+
+
+    self.svg = MyDummyInkexSVG(self.document)
     self.wrapped_effect()
 
 
