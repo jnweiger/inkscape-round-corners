@@ -79,7 +79,6 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
       old style:
       - self.document= <lxml.etree._ElementTree object at 0x7f5c2b1a77e8>
       - self.document.getroot() =  <Element {http://www.w3.org/2000/svg}svg at 0x7f5c2b1a78c0>
-      - self.document.getElementById('path1684') = AttributeError: 'lxml.etree._ElementTree' object has no attribute 'getElementById'
 
       new style:
       - self.svg= <class 'inkex.elements._svg.SvgDocumentElement'>
@@ -100,22 +99,62 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
 
 
   def effect_wrapper(self):
+    """
+       A cheap plastic immitation if inkscape-1.0.1's SvgDocumentElement() class found in
+       /usr/share/inkscape/extensions/inkex/elements/_svg.py
+       We add an svg object to the old api, so that new style code can run.
+       Note: only a very minimal set of methods is supported, and those that are, in a very primitive way.
+    """
 
-    class DummySvgDocumentElement():
-      """
-         A cheap plastic immitation if inkscape-1.0.1's SvgDocumentElement() class.
-         This adds the svg object to the old api, so that new style code can run.
-         Note: only a very minimal set of methods is supported, and those that are, in a very primitive way.
-      """
+    class MySvgPath():
+      def __init__(self, el):
+        self.element = el                       # original lxml.etree._Element
+        self.d = el.get('d')                    # must exist, else it is not a path :-)
+        print('MySvgPath sodipodi:nodetypes=', el.get('{'+el.nsmap['sodipodi']+'}nodetypes'), file=sys.stderr)
+        print('MySvgPath style=', el.get('style'), file=sys.stderr)
+        print('MySvgPath d=', self.d, file=sys.stderr)
+
+      def to_superpath(self):
+        print('MySvgElement to_superpath ', self.d, file=sys.stderr)
+        raise(Exception("to_superpath() not impl."))
+
+
+    class MySvgElement():
+      def __init__(self, el):
+        self.element = el                       # original lxml.etree._Element; element.getroottree() has the svg document
+        self.tag = el.tag.split('}')[-1]        # strip any namespace prefix. '{http://www.w3.org/2000/svg}path'
+        print("MySvgElement tag=", self.tag, " attrib=", el.attrib, " from ", el.base, ":", el.sourceline, file=sys.stderr)
+        if self.tag == 'path':
+          self.path = MySvgPath(el)
+        else:
+          print("MySvgElement not implemented for tag=", tag, file=sys.stderr)
+
+      def apply_transform(self):
+        t = self.element.get('transform')
+        print('MySvgElement transform=', t, file=sys.stderr)
+        if t is not None:
+          raise(Exception("apply_transform() not impl."))
+
+
+    class MySvgDocumentElement():
       def __init__(self, document):
-        self._svg = document
+        self.tree = document
+        self.root = document.getroot()
+        self.NSS = self.root.nsmap.copy()       # Or should we just use inkex.NSS instead? That has key 'inx', but not 'inkscape' ...
+        self.NSS.pop(None)                      # My documents nsmap has cc,svg,inkscape,rdf,sodipodi, and None: http://www.w3.org/2000/svg
+        if 'inx' not in self.NSS and 'inkscape' in self.NSS:
+          self.NSS['inx'] = self.NSS['inkscape']
 
       def getElementById(self, id):
-        print("DummySvgDocumentElement.getElementById: document=", self._svg, " ID=", id, file=sys.stderr)
-        assert(False)
+        print("MySvgDocumentElement.getElementById: svg=", self.tree, " svg.root=", self.root, " ID=", id, file=sys.stderr)
+        el_list = self.root.xpath('//*[@id="%s"]' % id, namespaces=self.NSS)
+        print("el_list=", el_list, file=sys.stderr)
+        if len(el_list) < 1:
+          return None
+        return MySvgElement(el_list[0])         # Do we need more? document root is accessible via el_list[0].getroottree()
 
 
-    self.svg = MyDummyInkexSVG(self.document)
+    self.svg = MySvgDocumentElement(self.document)
     self.wrapped_effect()
 
 
@@ -217,7 +256,7 @@ class RoundedCorners(inkex.EffectExtension):
       node_idx = int(s[2]) + idx_adjust
 
       elem = self.svg.getElementById(path_id)
-      elem.apply_transform()       # modifies path inplace? -- We save later save back to the same element. Maybe we should not?
+      elem.apply_transform()       # modifies path inplace? -- We save later back to the same element. Maybe we should not?
       path = elem.path
       s = path.to_superpath()
       sp = s[subpath_idx]
@@ -232,9 +271,11 @@ class RoundedCorners(inkex.EffectExtension):
       elem.set_path(s.to_path(curves_only=False))
       self.nodes_inserted[subpath_id] = idx_adjust
 
+      # Debugging is no longer available or not yet implemented? This explodes, although it is
       # documented in https://inkscape.gitlab.io/extensions/documentation/inkex.command.html
       # inkex.command.write_svg(self.svg, "/tmp/seen.svg")
-      # - AttributeError: module 'inkex' has no attribute 'command
+      # - AttributeError: module 'inkex' has no attribute 'command'
+      # But hey, we can always resort to good old ET.dump(self.document) ...
 
 
     def super_node(self, sp, node_idx):
