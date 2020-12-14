@@ -27,10 +27,10 @@
 # v1.1, 2020-12-07, jw	- Replaced boolean 'cut' with a method selector 'arc'/'line'. Added round_corners_092.inx
 #                         and started backport in round_corners.py -- attempting to run the same code everywhere.
 # v1.2, 2020-12-08, jw  - Backporting continued: option parser hack added. Started effect_wrapper() to prepare self.svg
-#                         UNFINISHED: self.svg only has an empty getElementById() method.
+# v1.3  2020-12-12, jw  - minimalistic compatibility layer for inkscape 0.92.4 done. It now works in both, 1.0 and 0.92!
 #
-# Nasty side-effect: as the node count increases, the list of selected nodes is incorrect
-# afterwards. We have no way to give inkscape an update.
+# Bad side-effect: As the node count increases during operation, the list of
+# selected nodes is incorrect afterwards. We have no way to give inkscape an update.
 #
 """
 Rounded Corners
@@ -43,6 +43,10 @@ When the sides are curved, the arc is placed on the tanget line, and the curve m
 
 Selected smooth nodes are skipped.
 Cases with insufficient space (180deg turn or too short segments/handles) are warned about.
+
+This extension is written for inkscape 1.0.1 and is compatible with inkscape 0.92.4 .
+The code is 100% new API, but we hook a minimalistic 0.92.4 compatibility layer.
+For use with 0.92.4 rename round_corners.092_inx to round_corners.inx and keep this python file as is.
 
 References:
  - https://gitlab.com/inkscape/extensions/-/wikis/home
@@ -66,6 +70,9 @@ from __future__ import print_function
 import inkex
 import sys, math, pprint
 
+__version__ = '1.3'             # Keep in sync with round_corners.inx line 16
+debug = False                   # True: babble on controlling tty
+
 if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPATIBILITY HACK
   """ OOPS, the code **after** this if conditional is meant for inkscape 1.0.1,
       but we seem to be running under inkscape 0.92.x today.
@@ -85,10 +92,86 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
       - self.svg.getElementById('path1684') =  <class 'inkex.elements._polygons.PathElement'>
         ## maybe not even based on an lxml ElephantTree any more? Let's check the new code...
   """
-  def compat_add_argument(pars, *args, **kw):
+  class MySvgSuperPath(list):
+    """ A list (of lists ...) object, that implements a new style to_path() method
+        to turn itself into a string attribute for <path d=...> nodes.
     """
-       Provide an add_argument() method so that add_argument() can use the new api,
-       but implemented in terms of the old api.
+    def to_path(self, curves_only=False):
+      """ convert from csp [[[[...]]]] to d "m ..."
+          using old 0.92.4 api.
+          Note that closed paths are not closed properly by formatPath().
+          Start and end of a closed path remains as two distinct points that just coincide.
+          That is a bug in the old API. Wontfix.
+      """
+      import cubicsuperpath
+
+      return cubicsuperpath.formatPath(self)
+
+
+  class MySvgPath():
+    def __init__(self, el):
+      self.element = el                       # original lxml.etree._Element
+      self.d = el.get('d')                    # must exist, else it is not a path :-)
+      # print('MySvgPath sodipodi:nodetypes=', el.get('{'+el.nsmap['sodipodi']+'}nodetypes'), file=sys.stderr)
+      # print('MySvgPath style=', el.get('style'), file=sys.stderr)
+      # print('MySvgPath d=', self.d, file=sys.stderr)
+
+    def to_superpath(self):
+      import cubicsuperpath
+
+      # self.d = "m 168.21,78.84 11.44,5.24 -14.65,8.77 z"
+      # supp = [[ [[168.21, 78.84], [168.21, 78.84], [168.21, 78.84]],
+      #           [[179.65, 84.09], [179.65, 84.09], [179.65, 84.09]],
+      #           [[164.99, 92.87], [164.99, 92.87], [164.99, 92.87]],
+      #           [[168.21, 78.84], [168.21, 78.84], [168.21, 78.84]] ]]
+      return MySvgSuperPath(cubicsuperpath.parsePath(self.d))
+
+
+  class MySvgElement():
+    def __init__(self, el):
+      self.element = el                       # original lxml.etree._Element; element.getroottree() has the svg document
+      self.tag = el.tag.split('}')[-1]        # strip any namespace prefix. '{http://www.w3.org/2000/svg}path'
+      self.id = self.element.attrib.get('id')
+      if self.tag == 'path':
+        self.path = MySvgPath(el)
+      else:
+        print("MySvgElement not implemented for <%s id='%s' ..." % (self.tag, self.id), file=sys.stderr)
+
+    def apply_transform(self):
+      t = self.element.get('transform')
+      # print('MySvgElement transform=', t, file=sys.stderr)
+      if t is not None:
+        raise(Exception("apply_transform() for id='%s' transform='%s' not impl." % (self.id, t)))
+
+    def set_path(self, d):
+      if self.tag != 'path':
+        raise(Exception("MySvgElement set_path() called on non-path node" + self.tag))
+      if type(d) != type(""):
+        raise(Exception("MySvgElement set_path() called with non-string d " + type(d)))
+      self.element.set('d', d)
+
+
+  class MySvgDocumentElement():
+    def __init__(self, document):
+      self.tree = document
+      self.root = document.getroot()
+      self.NSS = self.root.nsmap.copy()       # Or should we just use inkex.NSS instead? That has key 'inx', but not 'inkscape' ...
+      self.NSS.pop(None)                      # My documents nsmap has cc,svg,inkscape,rdf,sodipodi, and None: http://www.w3.org/2000/svg
+      if 'inx' not in self.NSS and 'inkscape' in self.NSS:
+        self.NSS['inx'] = self.NSS['inkscape']
+
+    def getElementById(self, id):
+      # print("MySvgDocumentElement.getElementById: svg=", self.tree, " svg.root=", self.root, " ID=", id, file=sys.stderr)
+      el_list = self.root.xpath('//*[@id="%s"]' % id, namespaces=self.NSS)
+      # print("el_list=", el_list, file=sys.stderr)
+      if len(el_list) < 1:
+        return None
+      return MySvgElement(el_list[0])         # Do we need more? document root is accessible via el_list[0].getroottree()
+
+
+  def compat_add_argument(pars, *args, **kw):
+    """ Provide an add_argument() method so that add_argument() can use the new api,
+        but implemented in terms of the old api.
     """
     # convert type method into type string as needed, see deprecated.py def add_option()
     if 'type' in kw:
@@ -99,88 +182,37 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
 
 
   def effect_wrapper(self):
+    """ A cheap plastic immitation if inkscape-1.0.1's SvgDocumentElement() class found in
+        /usr/share/inkscape/extensions/inkex/elements/_svg.py
+        We add an svg object to the old api, so that new style code can run.
+        Note: only a very minimal set of methods is supported, and those that are, in a very primitive way.
     """
-       A cheap plastic immitation if inkscape-1.0.1's SvgDocumentElement() class found in
-       /usr/share/inkscape/extensions/inkex/elements/_svg.py
-       We add an svg object to the old api, so that new style code can run.
-       Note: only a very minimal set of methods is supported, and those that are, in a very primitive way.
-    """
-
-    class MySvgPath():
-      def __init__(self, el):
-        self.element = el                       # original lxml.etree._Element
-        self.d = el.get('d')                    # must exist, else it is not a path :-)
-        print('MySvgPath sodipodi:nodetypes=', el.get('{'+el.nsmap['sodipodi']+'}nodetypes'), file=sys.stderr)
-        print('MySvgPath style=', el.get('style'), file=sys.stderr)
-        print('MySvgPath d=', self.d, file=sys.stderr)
-
-      def to_superpath(self):
-        print('MySvgElement to_superpath ', self.d, file=sys.stderr)
-        raise(Exception("to_superpath() not impl."))
-
-
-    class MySvgElement():
-      def __init__(self, el):
-        self.element = el                       # original lxml.etree._Element; element.getroottree() has the svg document
-        self.tag = el.tag.split('}')[-1]        # strip any namespace prefix. '{http://www.w3.org/2000/svg}path'
-        print("MySvgElement tag=", self.tag, " attrib=", el.attrib, " from ", el.base, ":", el.sourceline, file=sys.stderr)
-        if self.tag == 'path':
-          self.path = MySvgPath(el)
-        else:
-          print("MySvgElement not implemented for tag=", tag, file=sys.stderr)
-
-      def apply_transform(self):
-        t = self.element.get('transform')
-        print('MySvgElement transform=', t, file=sys.stderr)
-        if t is not None:
-          raise(Exception("apply_transform() not impl."))
-
-
-    class MySvgDocumentElement():
-      def __init__(self, document):
-        self.tree = document
-        self.root = document.getroot()
-        self.NSS = self.root.nsmap.copy()       # Or should we just use inkex.NSS instead? That has key 'inx', but not 'inkscape' ...
-        self.NSS.pop(None)                      # My documents nsmap has cc,svg,inkscape,rdf,sodipodi, and None: http://www.w3.org/2000/svg
-        if 'inx' not in self.NSS and 'inkscape' in self.NSS:
-          self.NSS['inx'] = self.NSS['inkscape']
-
-      def getElementById(self, id):
-        print("MySvgDocumentElement.getElementById: svg=", self.tree, " svg.root=", self.root, " ID=", id, file=sys.stderr)
-        el_list = self.root.xpath('//*[@id="%s"]' % id, namespaces=self.NSS)
-        print("el_list=", el_list, file=sys.stderr)
-        if len(el_list) < 1:
-          return None
-        return MySvgElement(el_list[0])         # Do we need more? document root is accessible via el_list[0].getroottree()
-
-
     self.svg = MySvgDocumentElement(self.document)
     self.wrapped_effect()
 
 
   def init_wrapper(self):
+    """ To backport the option parsing, we wrap the __init__ method and introduce a compatibility shim.
+        we must call add_arguments(), that seems to be done by EffectExtension.__init__() which we don't have.
+        have Effect.__init__() instead, which expects to be subclassed. We cannot subclass, as we don't want to
+        touch the class code at all. Instead exchange the Effect.__init__() with this wrapper, to hook in
+        new style semantics into the old style inkex.Effect superclass.
+        We also we must convert from new style pars.add_argument() calls to old style
+        self.OptionParser.add_option() -- this is done by the compat_add_argument wrapper.
+    """
     from types import MethodType
 
-    ## to backport the option parsing, we wrap the __init__ method and introduce a compatibility shim.
-    # we must call add_arguments(), that seems to be done by EffectExtension.__init__() which we don't have.
-    # have Effect.__init__() instead, which expects to be subclassed. We cannot subclass, as we don't want to
-    # touch the class code at all. Instead exchange the Effect.__init__() with this wrapper, to hook in
-    # new style semantics into the old style inkex.Effect superclass.
-    # We also we must convert from new style pars.add_argument() calls to old style
-    # self.OptionParser.add_option() -- this is done by the compat_add_argument wrapper.
-    #
     self.wrapped_init()                                    # call early, as it adds the OptionParser to self ...
 
-    # We add an add_argument method to the OptionParser. A direct assignment would discard the indirect object.
+    # We add an add_argument method to the OptionParser. Must do this via MethodType,
+    # as direct assignment would discard the indirect object.
     self.OptionParser.add_argument = MethodType(compat_add_argument, self.OptionParser)
 
-    # so that we can now call the new style add_arguments() method
+    # Now, as the new style add_argument() method is in place, we can run the add_arguments() initializer of the extension.
     self.add_arguments(self.OptionParser)
+    self.run = self.affect      # alias the extension entry point so that it works in both APs.
 
-    # self.document is not loaded yet, so we must prepare self.svg later.
-    self.run = self.affect      # MethodType(my_run, self) does not help. self.document is still none inside my_run()
-
-    # try wrap our own effect() method, that must be late enough...
+    # wrap our own effect() method. That is ugly, but self.document is not initialized any earlier.
     self.wrapped_effect = self.effect
     self.effect = MethodType(effect_wrapper, self)
 
@@ -192,10 +224,8 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
 # END OF INKSCAPE 0.92.X COMPATIBILITY HACK
 
 
-__version__ = '1.2'     # Keep in sync with round_corners.inx line 16
-
-debug = False           # True: babble on controlling tty
-max_trim_factor = 0.5   # 0.5: can cut half of a segment length or handle length away for rounding a corner
+max_trim_factor = 0.5           # 0.5: can cut half of a segment length or handle length away for rounding a corner
+max_trim_factor_single = 0.95   # 0.95: we can eat up almost everything, as there are no neighbouring trims to be expected.
 
 class RoundedCorners(inkex.EffectExtension):
 
@@ -217,7 +247,7 @@ class RoundedCorners(inkex.EffectExtension):
       self.skipped_small_count = 0      # not enough room for arc
       self.skipped_small_len = 1e99     # record the shortest handle (or segment) when skipping.
 
-      pars.add_argument("--radius", type=float, default=2.0, help="Radius [mm] to round selected vertices")
+      pars.add_argument("--radius", type=float, default=2.0, help="Radius [mm] to round selected vertices. Default: 2")
       pars.add_argument("--method", type=str, default="arc", help="operation: one of 'arc' (default), 'arc+cross', 'line'")
 
 
@@ -235,7 +265,7 @@ class RoundedCorners(inkex.EffectExtension):
         if len(self.options.selected_nodes) == 1:
           # when we only trim one node, we can eat up almost everything,
           # no need to leave room for rounding neighbour nodes.
-          self.max_trim_factor = 0.95
+          self.max_trim_factor = max_trim_factor_single
 
         for node in sorted(self.options.selected_nodes):
           ## we walk through the list sorted, so that node indices are processed within a subpath in ascending numeric order.
@@ -256,6 +286,10 @@ class RoundedCorners(inkex.EffectExtension):
       node_idx = int(s[2]) + idx_adjust
 
       elem = self.svg.getElementById(path_id)
+      if elem is None:
+        print("selected_node %s not found in svg document" % node_id, file=sys.stderr)
+        return None
+
       elem.apply_transform()       # modifies path inplace? -- We save later back to the same element. Maybe we should not?
       path = elem.path
       s = path.to_superpath()
@@ -452,10 +486,6 @@ class RoundedCorners(inkex.EffectExtension):
       sn = self.super_node(sp, node_idx)
       if sn is None: return sp          # do nothing. stderr messages are already printed.
 
-      # from https://de.wikipedia.org/wiki/Schnittwinkel_(Geometrie)
-      # wikipedia has an abs() in the formula, which extracts the smaller of the two angles.
-      # we don't want that. We need to distinguish betwenn spitzwingklig and stumpfwinklig.
-      #
       # The angle to be rounded is now between the vectors a and b
       #
       a = sn['prev']['handle']
@@ -463,6 +493,10 @@ class RoundedCorners(inkex.EffectExtension):
       a_len = sn['prev']['hlen']
       b_len = sn['next']['hlen']
       try:
+        # From https://de.wikipedia.org/wiki/Schnittwinkel_(Geometrie)
+        # Wikipedia has an abs() in the formula, which extracts the smaller of the two angles.
+        # We don't want that. We need to distinguish betwenn spitzwingklig and stumpfwinklig.
+        #
         alpha = math.acos( (a[0]*b[0]+a[1]*b[1]) / ( math.sqrt(a[0]*a[0]+a[1]*a[1]) * math.sqrt(b[0]*b[0]+b[1]*b[1]) ) )
       except:
         # Division by 0 error means path folds back on itself here. No space to apply a radius between the segments.
@@ -484,12 +518,21 @@ class RoundedCorners(inkex.EffectExtension):
       if trim < 0.0:
         print("Error: at node_idx=%d: angle=%g°, trim is negative: %g" % (node_idx, math.degrees(alpha), trim), file=sys.stderr)
         return sp
-      if trim > self.max_trim_factor*min(a_len, b_len):
+
+      # a_len points to the previous node. There we can always allow max_trim_factor_single, as the trim was either already done,
+      # or will not be done. Only at b_len we need to reserve space for the next trim.
+      # FIXME: also allow max_trim_factor_single at b_len, when we find that the very next node will not be rounded.
+      #
+      available_len = min(max_trim_factor_single*a_len, self.max_trim_factor*b_len)
+      if trim > available_len:
         if debug:
-          print("Skipping where trim > %g * hlen" % self.max_trim_factor, file=self.tty)
+          if trim > max_trim_factor_single*a_len:
+            print("Skipping where hlen_a %g * max_trim %g < needed_trim %g" % (hlen_a, max_trim_factor_single, trim), file=self.tty)
+          if trim > self.max_trim_factor*b_len:
+            print("Skipping where hlen_b %g * max_trim %g < needed_trim %g" % (hlen_b, self.max_trim_factor, trim), file=self.tty)
           pprint.pprint(sn, stream=self.tty)
-        if self.skipped_small_len > self.max_trim_factor*min(a_len, b_len):
-          self.skipped_small_len = self.max_trim_factor*min(a_len, b_len)
+        if self.skipped_small_len > available_len:
+          self.skipped_small_len = available_len
         self.skipped_small_count += 1
         return sp
       trim_pt_p = [ sn['x'] + a[0] * trim / a_len, sn['y'] + a[1] * trim / a_len ]
@@ -552,7 +595,7 @@ class RoundedCorners(inkex.EffectExtension):
       if self.skipped_degenerated:
         print("Warning: Skipped %d degenerated nodes (180° turn or end of path?).\n" % self.skipped_degenerated, file=sys.stderr)
       if self.skipped_small_count:
-        print("Warning: Skipped %d nodes with not enough space (Value %g is too small. Try a smaller radius?).\n" % (self.skipped_small_count, self.skipped_small_len), file=sys.stderr)
+        print("Warning: Skipped %d nodes with not enough space (Value %g is too small. Try again with a smaller radius or only one node selected).\n" % (self.skipped_small_count, self.skipped_small_len), file=sys.stderr)
 
 
 if __name__ == '__main__':
