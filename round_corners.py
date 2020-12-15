@@ -68,10 +68,10 @@ Information Technology and Control, 35(4), 2006 pp. 371-378.
 from __future__ import print_function
 
 import inkex
-import sys, math, pprint
+import sys, math, pprint, copy
 
 __version__ = '1.3'             # Keep in sync with round_corners.inx line 16
-debug = False                   # True: babble on controlling tty
+debug = True                   # True: babble on controlling tty
 
 if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPATIBILITY HACK
   """ OOPS, the code **after** this if conditional is meant for inkscape 1.0.1,
@@ -273,6 +273,17 @@ class RoundedCorners(inkex.EffectExtension):
           ss = self.round_corner(node)
 
 
+    def very_close(self, n1, n2):
+      "deep compare. all elements in sub arrays are compared for (very close) numerical equality"
+      return self.very_close_xy(n1[0], n2[0]) and self.very_close_xy(n1[1], n2[1]) and self.very_close_xy(n1[2], n2[2])
+
+
+    def very_close_xy(self, p1, p2):
+      "one 2 element array is compared for (very close) numerical equality"
+      eps = 1e-9
+      return abs(p1[0]-p2[0]) < eps and abs(p1[1]-p2[1]) < eps
+
+
     def round_corner(self, node_id):
       """ round the corner at (adjusted) node_idx of subpath
           Side_effect: store (or increment) in self.inserted["pathname:subpath"] how many points were inserted in that subpath.
@@ -313,8 +324,10 @@ class RoundedCorners(inkex.EffectExtension):
 
 
     def super_node(self, sp, node_idx):
-      """ In case of node_idx 0, we need to use either the last, or the second-last node as a previous node.
-          For a closed subpath, the last an the first node are identical, then we use the second-last.
+      """ In case of node_idx 0, we need to use either the last, the second-last or the third last node as a previous node.
+          For a closed subpath, the last node and the first node are identical. Then, the second last node may be still at the
+          same location if it has a handle. If so, we take the third last instead. Gah. It has a certain logic...
+
           In case of the node_idx being the last node, we already know that the subpath is not closed,
           we use 0 as the next node.
 
@@ -339,24 +352,29 @@ class RoundedCorners(inkex.EffectExtension):
             (Finding exact candidate points on curved lines that have tangents with the desired circle
             is beyond me today. Multiple candidates may exist. Any volunteers?)
       """
+
       prev_idx = node_idx - 1
+      sp_node_idx_ = copy.deepcopy(sp[node_idx])        # if this wraps around, at node_idx=0, we may need to tweak the prev handle
       if node_idx == 0:
         prev_idx = len(sp) - 1
-        # deep compare. all elements in sub arrays are compared for numerical equality
-        if sp[node_idx] == sp[prev_idx]:
-          prev_idx = prev_idx - 1
+        if self.very_close(sp_node_idx_, sp[prev_idx]):
+          prev_idx = prev_idx - 1       # skip one node, it is the 'close marker'
+          if self.very_close_xy(sp_node_idx_[1], sp[prev_idx][1]):
+            # still no distance, skip more. Needed for https://github.com/jnweiger/inkscape-round-corners/issues/2
+            sp_node_idx_[0] = sp[prev_idx][0]       # this sp_node_idx_ must acts as if its prev handle is that one.
+            prev_idx = prev_idx - 1
         else:
           self.skipped_degenerated += 1         # path ends here.
-          return None
+          return None, None
 
       # if debug: pprint.pprint({'node_idx': node_idx, 'len(sp)':len(sp), 'sp': sp}, stream=self.tty)
       if node_idx == len(sp)-1:
         self.skipped_degenerated += 1           # path ends here. On a closed loop, we can never select the last point.
-        return None
+        return None, None
 
       next_idx = node_idx + 1
       if next_idx >= len(sp): next_idx = 0
-      t = sp[node_idx]
+      t = sp_node_idx_
       p = sp[prev_idx]
       n = sp[next_idx]
       dir1 = [ p[2][0] - t[1][0], p[2][1] - t[1][1] ]           # direction to the previous node (rel coords)
@@ -365,8 +383,8 @@ class RoundedCorners(inkex.EffectExtension):
       dist2 = math.sqrt(dir2[0]*dir2[0] + dir2[1]*dir2[1])      # distance to the next node
       handle1 = [ t[0][0] - t[1][0], t[0][1] - t[1][1] ]        # handle towards previous node (rel coords)
       handle2 = [ t[2][0] - t[1][0], t[2][1] - t[1][1] ]        # handle towards next node (rel coords)
-      if handle1 == [ 0, 0 ]: handle1 = dir1
-      if handle2 == [ 0, 0 ]: handle2 = dir2
+      if self.very_close_xy(handle1, [ 0, 0 ]): handle1 = dir1
+      if self.very_close_xy(handle2, [ 0, 0 ]): handle2 = dir2
 
       prev = { 'idx': prev_idx, 'dir':dir1, 'handle':handle1 }
       next = { 'idx': next_idx, 'dir':dir2, 'handle':handle2 }
@@ -379,7 +397,7 @@ class RoundedCorners(inkex.EffectExtension):
           pprint.pprint(sn, stream=sys.stderr)
         if self.skipped_small_len > dist1: self.skipped_small_len = dist1
         self.skipped_small_count += 1
-        return None
+        return None, None
 
       if dist2 < self.radius:
         if debug:
@@ -388,7 +406,7 @@ class RoundedCorners(inkex.EffectExtension):
           pprint.pprint(sn, stream=sys.stderr)
         if self.skipped_small_len > dist2: self.skipped_small_len = dist2
         self.skipped_small_count += 1
-        return None
+        return None, None
 
       len_h1 = math.sqrt(handle1[0]*handle1[0] + handle1[1]*handle1[1])
       len_h2 = math.sqrt(handle2[0]*handle2[0] + handle2[1]*handle2[1])
@@ -402,7 +420,7 @@ class RoundedCorners(inkex.EffectExtension):
           pprint.pprint(sn, stream=sys.stderr)
         if self.skipped_small_len > len_h1: self.skipped_small_len = len_h1
         self.skipped_small_count += 1
-        return None
+        return None, None
       if len_h2 < self.radius:
         if debug:
           print("subpath node_idx=%d, handle to next(%d) is shorter than radius: %g < %g" %
@@ -410,7 +428,7 @@ class RoundedCorners(inkex.EffectExtension):
           pprint.pprint(sn, stream=sys.stderr)
         if self.skipped_small_len > len_h2: self.skipped_small_len = len_h2
         self.skipped_small_count += 1
-        return None
+        return None, None
 
       if len_h1 > dist1: # shorten that handle to dist1, avoid overshooting the point
         handle1[0] = handle1[0] * dist1 / len_h1
@@ -421,7 +439,7 @@ class RoundedCorners(inkex.EffectExtension):
         handle2[1] = handle2[1] * dist2 / len_h2
         next['hlen'] = dist2
 
-      return sn
+      return sn, sp_node_idx_
 
 
     def arc_c_m_from_super_node(self, s):
@@ -483,7 +501,7 @@ class RoundedCorners(inkex.EffectExtension):
 
 
     def subpath_round_corner(self, sp, node_idx):
-      sn = self.super_node(sp, node_idx)
+      sn, sp_node_idx_ = self.super_node(sp, node_idx)
       if sn is None: return sp          # do nothing. stderr messages are already printed.
 
       # The angle to be rounded is now between the vectors a and b
@@ -552,10 +570,10 @@ class RoundedCorners(inkex.EffectExtension):
       # to not flip around when applying the trim.
       # But we move the endpoints of 0-length outside handles with the point when trimming,
       # so that they don't end up on the inside.
-      prev_handle = sp[node_idx][0][:]
-      next_handle = sp[node_idx][2][:]
-      if prev_handle == sp[node_idx][1]: prev_handle = trim_pt_p[:]
-      if next_handle == sp[node_idx][1]: next_handle = trim_pt_n[:]
+      prev_handle = sp_node_idx_[0][:]
+      next_handle = sp_node_idx_[2][:]
+      if self.very_close_xy(prev_handle, sp_node_idx_[1]): prev_handle = trim_pt_p[:]
+      if self.very_close_xy(next_handle, sp_node_idx_[1]): next_handle = trim_pt_n[:]
 
       p1 = trim_pt_p[:]
       p7 = trim_pt_n[:]
