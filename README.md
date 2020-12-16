@@ -21,15 +21,18 @@ The curvature of the path segment adjusts slightly to fit the new endpoint.
 ## Installation
 
 Download and unpack a zip-archive from https://github.com/jnweiger/inkscape-round-corners/releases
+The extension is installed by copying two files into your extensions folder (check Edit -> Settings -> System to find its location):
 
-For inkscape 1.0.1 and later, copy these two files into your extensions folder:
+For inkscape 1.0.1 and later, copy
 * `rounded_corners.py`
 * `rounded_corners.inx`
 
-For inkscape 0.92.4 and earler, copy these two files into your extensions folder:
+For inkscape 0.92.4 and earler, copy
 * `rounded_corners.py`
 * `rounded_corners.092_inx` (renamed to end in `.inx`)
 
-All other files are not needed (but harmless if installed too). With inkscape 1.0.1 you can e.g. unpack the entire zip as a subfolder into your extensions folder.
+(All other files are not needed, but harmless if installed too.
+With inkscape 1.0.1 you can e.g. unpack the entire zip as a subfolder into your extensions folder.
+With inkscape 0.92.4 no subfolders are allowed.)
 
 Then restart inkscape and look for Extensions -> Modify Path -> Rounded Corners
