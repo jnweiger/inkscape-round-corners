@@ -30,6 +30,6 @@ For inkscape 0.92.4 and earler, copy these two files into your extensions folder
 * `rounded_corners.py`
 * `rounded_corners.092_inx` (renamed to end in `.inx`)
 
-All other files are not needed (but harmless). With inkscape 1.0.1 you can e.g. unpack the entire zip as a subfolder into your extensions folder.
+All other files are not needed (but harmless if installed too). With inkscape 1.0.1 you can e.g. unpack the entire zip as a subfolder into your extensions folder.
 
 Then restart inkscape and look for Extensions -> Modify Path -> Rounded Corners
