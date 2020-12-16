@@ -27,7 +27,8 @@
 # v1.1, 2020-12-07, jw	- Replaced boolean 'cut' with a method selector 'arc'/'line'. Added round_corners_092.inx
 #                         and started backport in round_corners.py -- attempting to run the same code everywhere.
 # v1.2, 2020-12-08, jw  - Backporting continued: option parser hack added. Started effect_wrapper() to prepare self.svg
-# v1.3  2020-12-12, jw  - minimalistic compatibility layer for inkscape 0.92.4 done. It now works in both, 1.0 and 0.92!
+# v1.3, 2020-12-12, jw  - minimalistic compatibility layer for inkscape 0.92.4 done. It now works in both, 1.0 and 0.92!
+# v1.4, 2020-12-15, jw  - find_roundable_nodes() added for auto selecting nodes, if none were selected.
 #
 # Bad side-effect: As the node count increases during operation, the list of
 # selected nodes is incorrect afterwards. We have no way to give inkscape an update.
@@ -70,7 +71,7 @@ from __future__ import print_function
 import inkex
 import sys, math, pprint, copy
 
-__version__ = '1.3'             # Keep in sync with round_corners.inx line 16
+__version__ = '1.4'             # Keep in sync with round_corners.inx line 16
 debug = True                   # True: babble on controlling tty
 
 if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPATIBILITY HACK
@@ -224,8 +225,8 @@ if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPA
 # END OF INKSCAPE 0.92.X COMPATIBILITY HACK
 
 
-max_trim_factor = 0.5           # 0.5: can cut half of a segment length or handle length away for rounding a corner
-max_trim_factor_single = 0.95   # 0.95: we can eat up almost everything, as there are no neighbouring trims to be expected.
+max_trim_factor = 0.90          # 0.5: can cut half of a segment length or handle length away for rounding a corner
+max_trim_factor_single = 0.98   # 0.98: we can eat up almost everything, as there are no neighbouring trims to be expected.
 
 class RoundedCorners(inkex.EffectExtension):
 
@@ -261,7 +262,12 @@ class RoundedCorners(inkex.EffectExtension):
         if self.options.method in ('line'):
           self.cut = True
         if len(self.options.selected_nodes) < 1:
-          raise inkex.AbortExtension("Need at least one selected node in the path. Go to edit path, click a corner, then try again.")
+          # find selected objects and construct a list of selected_nodes for them...
+          for p in self.options.ids:
+            self.options.selected_nodes.extend(self.find_roundable_nodes(p))
+          if len(self.options.selected_nodes) < 1:
+            raise inkex.AbortExtension("Could not find nodes inside a path nodes. No path objects selected?")
+
         if len(self.options.selected_nodes) == 1:
           # when we only trim one node, we can eat up almost everything,
           # no need to leave room for rounding neighbour nodes.
@@ -271,6 +277,40 @@ class RoundedCorners(inkex.EffectExtension):
           ## we walk through the list sorted, so that node indices are processed within a subpath in ascending numeric order.
           ## that makes adjusting index offsets after node inserts easier.
           ss = self.round_corner(node)
+
+
+    def find_roundable_nodes(self, path_id):
+      """ select all nodes of all (sub)paths. except for
+          - the last (one or two) nodes of a closed path (which coindide with the first node)
+          - the first and last node of an open path (which cannot be smoothed)
+      """
+      ret = []
+      elem = self.svg.getElementById(path_id)
+      if elem.tag != '{'+elem.nsmap['svg']+'}path':
+        return ret      # ellipse never works.
+      try:
+        csp = elem.path.to_superpath()
+      except:
+        return ret
+
+      for sp_idx in range(0, len(csp)):
+        sp = csp[sp_idx]
+        if len(sp) < 3:
+          continue      # subpaths of 2 or less nodes are ignored
+        if self.very_close(sp[0], sp[-1]):
+          idx_s = 0     # closed paths count from 0 to either n-1 or n-2
+          idx_e = len(sp) - 1
+          if self.very_close_xy(sp[-2][1], sp[-1][1]):
+            idx_e = len(sp) - 2
+        else:
+          idx_s = 1     # open paths count from 1 to either n-1
+          idx_e = len(sp) - 1
+        for idx in range(idx_s, idx_e):
+          ret.append("%s:%d:%d" % (path_id, sp_idx, idx))
+
+        if debug:
+          print("find_roundable_nodes: ", self.options.selected_nodes, file=sys.stderr)
+      return ret
 
 
     def very_close(self, n1, n2):
@@ -315,6 +355,12 @@ class RoundedCorners(inkex.EffectExtension):
       s[subpath_idx] = sp
       elem.set_path(s.to_path(curves_only=False))
       self.nodes_inserted[subpath_id] = idx_adjust
+
+
+      # If we picked up the 'd' attribute of a non-path (e.g. star), we must make sure the object now becomes a path.
+      # Otherwise inkscape uses the sodipodi data and ignores our changed 'd' attribute.
+      if '{'+elem.nsmap['sodipodi']+'}type' in elem.attrib:
+        del(elem.attrib['{'+elem.nsmap['sodipodi']+'}type'])
 
       # Debugging is no longer available or not yet implemented? This explodes, although it is
       # documented in https://inkscape.gitlab.io/extensions/documentation/inkex.command.html
@@ -545,9 +591,9 @@ class RoundedCorners(inkex.EffectExtension):
       if trim > available_len:
         if debug:
           if trim > max_trim_factor_single*a_len:
-            print("Skipping where hlen_a %g * max_trim %g < needed_trim %g" % (hlen_a, max_trim_factor_single, trim), file=self.tty)
+            print("Skipping where hlen_a %g * max_trim %g < needed_trim %g" % (a_len, max_trim_factor_single, trim), file=self.tty)
           if trim > self.max_trim_factor*b_len:
-            print("Skipping where hlen_b %g * max_trim %g < needed_trim %g" % (hlen_b, self.max_trim_factor, trim), file=self.tty)
+            print("Skipping where hlen_b %g * max_trim %g < needed_trim %g" % (b_len, self.max_trim_factor, trim), file=self.tty)
           pprint.pprint(sn, stream=self.tty)
         if self.skipped_small_len > available_len:
           self.skipped_small_len = available_len
