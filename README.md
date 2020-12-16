@@ -1,7 +1,8 @@
-# inkscape-round-corners
-An inkscape 1.0 extension to apply a radius to sharp corners of a path.
+# Inkscape extension: Round Corners
+Apply a radius to sharp corners of a path.
+The extension is written for inkscape 1.0.1, but should also work with 0.92.4
 
-
+## Usage
 The screenshot below demonstrates the usage.<br>
 In the upper path, select the top left and bottom left corner (shown in blue).<br>
 Run "Rounded Corners" from "Extensions" -> "Modify Path".<br>
@@ -17,7 +18,7 @@ Note how the bottom path segment is curved.<br>
 In this case the direction of the spline handle is used to fit the arc. The direction and endpoint of the handle remain unchanged.
 The curvature of the path segment adjusts slightly to fit the new endpoint.
 
-## installation
+## Installation
 
 Download and unpack a zip-archive from https://github.com/jnweiger/inkscape-round-corners/releases
 
@@ -31,4 +32,4 @@ For inkscape 0.92.4 and earler, copy these two files into your extensions folder
 
 All other files are not needed (but harmless). With inkscape 1.0.1 you can e.g. unpack the entire zip as a subfolder into your extensions folder.
 
-Then restart inkscape, and look for Extensions -> Modify Path -> Rounded Corners
+Then restart inkscape and look for Extensions -> Modify Path -> Rounded Corners
