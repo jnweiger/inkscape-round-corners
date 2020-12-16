@@ -16,3 +16,19 @@ The bottom left corner is acute ( < 90° ) and requires a spline of three vertic
 Note how the bottom path segment is curved.<br>
 In this case the direction of the spline handle is used to fit the arc. The direction and endpoint of the handle remain unchanged.
 The curvature of the path segment adjusts slightly to fit the new endpoint.
+
+## installation
+
+Download and unpack a zip-archive from https://github.com/jnweiger/inkscape-round-corners/releases
+
+For inkscape 1.0.1 and later, copy these two files into your extensions folder:
+* `rounded_corners.py`
+* `rounded_corners.inx`
+
+For inkscape 0.92.4 and earler, copy these two files into your extensions folder:
+* `rounded_corners.py`
+* `rounded_corners.092_inx` (renamed to end in `.inx`)
+
+All other files are not needed (but harmless). With inkscape 1.0.1 you can e.g. unpack the entire zip as a subfolder into your extensions folder.
+
+Then restart inkscape, and look for Extensions -> Modify Path -> Rounded Corners
