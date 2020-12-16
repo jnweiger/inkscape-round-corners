@@ -1,6 +1,6 @@
 # Inkscape extension: Round Corners
 Apply a radius to sharp corners of a path.
-The extension is written for inkscape 1.0.1, but should also work with 0.92.4
+The extension is written for inkscape 1.0.1 (but also contains a backport for 0.92.4).
 
 ## Usage
 The screenshot below demonstrates the usage.<br>
