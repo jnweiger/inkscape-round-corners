@@ -29,6 +29,7 @@
 # v1.2, 2020-12-08, jw  - Backporting continued: option parser hack added. Started effect_wrapper() to prepare self.svg
 # v1.3, 2020-12-12, jw  - minimalistic compatibility layer for inkscape 0.92.4 done. It now works in both, 1.0 and 0.92!
 # v1.4, 2020-12-15, jw  - find_roundable_nodes() added for auto selecting nodes, if none were selected.
+#                         And fix https://github.com/jnweiger/inkscape-round-corners/issues/2
 #
 # Bad side-effect: As the node count increases during operation, the list of
 # selected nodes is incorrect afterwards. We have no way to give inkscape an update.
@@ -72,7 +73,7 @@ import inkex
 import sys, math, pprint, copy
 
 __version__ = '1.4'             # Keep in sync with round_corners.inx line 16
-debug = True                   # True: babble on controlling tty
+debug = False                   # True: babble on controlling tty
 
 if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPATIBILITY HACK
   """ OOPS, the code **after** this if conditional is meant for inkscape 1.0.1,
@@ -266,7 +267,7 @@ class RoundedCorners(inkex.EffectExtension):
           for p in self.options.ids:
             self.options.selected_nodes.extend(self.find_roundable_nodes(p))
           if len(self.options.selected_nodes) < 1:
-            raise inkex.AbortExtension("Could not find nodes inside a path nodes. No path objects selected?")
+            raise inkex.AbortExtension("Could not find nodes inside a path. No path objects selected?")
 
         if len(self.options.selected_nodes) == 1:
           # when we only trim one node, we can eat up almost everything,
@@ -633,14 +634,24 @@ class RoundedCorners(inkex.EffectExtension):
           p2, p6 = self.arc_bezier_handles(p1, p7, arc_c)
           node_a[2] = p2
           node_b[0] = p6
-        sp = sp[:node_idx] + [node_a] + [node_b] + sp[node_idx+1:]
+        if node_idx == 0:
+          # use prev idx to know about the extra skip. +1 for the node here, +1 for inclusive.
+          # CAUTION: Keep in sync below
+          sp = [node_a] + [node_b] + sp[1:sn['prev']['idx']+2]
+        else:
+          sp = sp[:node_idx] + [node_a] + [node_b] + sp[node_idx+1:]
       else:
         p2, p3 = self.arc_bezier_handles(p1, p4, arc_c)
         p5, p6 = self.arc_bezier_handles(p4, p7, arc_c)
         node_m = [ p3, p4, p5 ]
         node_a[2] = p2
         node_b[0] = p6
-        sp = sp[:node_idx] + [node_a] + [node_m] + [node_b] + sp[node_idx+1:]
+        if node_idx == 0:
+          # use prev idx to know about the extra skip. +1 for the node here, +1 for inclusive.
+          # CAUTION: Keep in sync above
+          sp = [node_a] + [node_m] + [node_b] + sp[1:sn['prev']['idx']+2]
+        else:
+          sp = sp[:node_idx] + [node_a] + [node_m] + [node_b] + sp[node_idx+1:]
 
       # A closed path is formed by making the last node indentical to the first node.
       # So, if we trim at the first node, then duplicte that trim on the last node, to keep the loop closed.
