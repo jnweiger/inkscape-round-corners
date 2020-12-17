@@ -39,5 +39,5 @@ Then restart inkscape and look for Extensions -> Modify Path -> Round Corners
 
 ## Similar solutions
 
-* Inkscape 1.0.1 has a path effect "Corners (Fillet/Chamfer)" - much more flexible, but makes easy cases quite hard.
+* Inkscape 1.0.1 has a path effect "Corners (Fillet/Chamfer)" - much more flexible, but makes simple cases quite hard.
 * https://inkscape.org/~crowhoot/%E2%98%85rounded-corners - cannot select individual nodes, does not work on curved segments, 0.92 only
