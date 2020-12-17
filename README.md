@@ -36,3 +36,8 @@ With inkscape 1.0.1 you can e.g. unpack the entire zip as a subfolder into your 
 With inkscape 0.92.4 no subfolders are allowed.)
 
 Then restart inkscape and look for Extensions -> Modify Path -> Rounded Corners
+
+## Similar solutions
+
+* Inkscape 1.0.1 has a path effect "Corners (Fillet/Chamfer)" - much more flexible, but makes easy cases quite hard.
+* https://inkscape.org/~crowhoot/%E2%98%85rounded-corners - cannot select individual nodes, does not work on curved segments, 0.92 only
