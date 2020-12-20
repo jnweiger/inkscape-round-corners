@@ -24,15 +24,20 @@ Download and unpack a zip-archive from https://github.com/jnweiger/inkscape-roun
 The extension is installed by copying two files into your extensions folder (check Edit -> Settings -> System to find its location):
 
 For inkscape 1.0.1 and later, copy
-* `rounded_corners.py`
-* `rounded_corners.inx`
+* `round_corners.py`
+* `round_corners.inx`
 
 For inkscape 0.92.4 and earler, copy
-* `rounded_corners.py`
-* `rounded_corners.092_inx` (renamed to end in `.inx`)
+* `round_corners.py`
+* `round_corners.092_inx` (renamed to end in `.inx`)
 
 (All other files are not needed, but harmless if installed too.
 With inkscape 1.0.1 you can e.g. unpack the entire zip as a subfolder into your extensions folder.
 With inkscape 0.92.4 no subfolders are allowed.)
 
-Then restart inkscape and look for Extensions -> Modify Path -> Rounded Corners
+Then restart inkscape and look for Extensions -> Modify Path -> Round Corners
+
+## Similar solutions
+
+* Inkscape 1.0.1 has a path effect "Corners (Fillet/Chamfer)" - much more flexible, but makes simple cases quite hard.
+* https://inkscape.org/~crowhoot/%E2%98%85rounded-corners - cannot select individual nodes, does not work on curved segments, 0.92 only.
