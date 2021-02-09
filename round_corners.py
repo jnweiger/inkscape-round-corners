@@ -70,7 +70,7 @@ Information Technology and Control, 35(4), 2006 pp. 371-378.
 from __future__ import print_function
 
 import inkex
-import sys, math, pprint, copy
+import sys, math, pprint, copy, os
 
 __version__ = '1.4'             # Keep in sync with round_corners.inx line 16
 debug = False                   # True: babble on controlling tty
