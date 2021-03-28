@@ -6,7 +6,7 @@ The extension is written for inkscape 1.0.1 (but also contains a backport for 0.
 The screenshot below demonstrates the usage.<br>
 In the upper path, select the top left and bottom left corner (shown in blue).<br>
 Run "Rounded Corners" from "Extensions" -> "Modify Path".<br>
-The result is the path below. (Also selected here in edit mode to show the vertices.)
+The result is the path below. (Viewed here in edit mode to show the vertices.)
 
 [![screenshot](doc/slanted_rect.png)](https://github.com/jnweiger/inkscape-round-corners/releases)
 
