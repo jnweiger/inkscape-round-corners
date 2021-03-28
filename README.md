@@ -11,12 +11,12 @@ The result is the path below. (Viewed here in edit mode to show the vertices.)
 [![screenshot](doc/slanted_rect.png)](https://github.com/jnweiger/inkscape-round-corners/releases)
 
 
-The top left corner has more than 90°, it is replaced with an spline path of two vertices representing an arc of less than a quarter circle.<br>
+The top left corner is obtuse (inner angle is more than 90°). Therefore it is replaced with an spline path of only two vertices representing an arc of less than a quarter circle.<br>
 The bottom left corner is acute ( < 90° ) and requires a spline of three vertices to nicely represent the desired arc.
 
 Note how the bottom path segment is curved.<br>
 In this case the direction of the spline handle is used to fit the arc. The direction and endpoint of the handle remain unchanged.
-The curvature of the path segment adjusts slightly to fit the new endpoint.
+The curvature of the bottom path segment adjusts slightly to meet the new endpoint.
 
 ## Installation
 
