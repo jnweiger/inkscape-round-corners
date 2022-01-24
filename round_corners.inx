@@ -23,7 +23,7 @@ a bezier spline that approximates an arc of the given radius.
 When the corner type is set to 'line', the arc is
 replaced with a straight cut.
 
-Version: 1.4
+Version: 1.5
   </label>
   <effect>
     <object-type>path</object-type>
