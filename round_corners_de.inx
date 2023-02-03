@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
-  <name>Runde Ecken v1.5 (de)</name><!-- for inkscape 1.0.x -->
+  <name>Runde Ecken (de) v1.5 </name><!-- for inkscape 1.0.x -->
   <id>org.inkscape.jnweiger.round_corners</id>
   <param name="radius" type="float" gui-text="Radius: [mm]" precision="2" min="0.001" max="999.99">2.0</param>
   <param name="method" type="enum" gui-text="Art der Verrundung:">
@@ -14,13 +14,13 @@
 * Wähle einen oder mehrere Eckpunkte aus.
 * Starte die Erweiterung,
    - lege den Radius der Abrundung fest.
-   - Anwenden (Apply)
+   - Anwenden
 
-Jeder ausgewählte Eckpunkt wird durch zwei oder mehr Pfadknoten 
+Jeder ausgewählte Eckpunkt wird durch zwei oder mehr Pfadknoten
 ersetzt, die den gewünschten Kreisbogen als Bezier-Spline darstellen.
 
-Wenn als Art der Verrundiung 'Schnitt' gewählt wurde,
-dann wird anstelle der Verrundung eine gerade Linie eingesetzt.
+Wenn als Art der Verrundung 'Schnitt' gewählt wurde, dann
+wird anstelle des Kreisbogens eine gerade Linie eingesetzt.
 
  <!-- Keep in sync with name element above and round_corners.py line 76 __version__ = ... -->
 Version: 1.5
