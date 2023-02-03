@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
-  <name>Round Corners v1.5</name><!-- for inkscape 1.0.x -->
+  <name>Runde Ecken v1.5 (de)</name><!-- for inkscape 1.0.x -->
   <id>org.inkscape.jnweiger.round_corners</id>
   <param name="radius" type="float" gui-text="Radius: [mm]" precision="2" min="0.001" max="999.99">2.0</param>
-  <param name="method" type="enum" gui-text="Corner type:">
-    <item value="arc">Arc </item>
+  <param name="method" type="enum" gui-text="Art der Verrundung:">
+    <item value="arc">Bogen </item>
     <!-- <item value="arc-cross">Arc + centercross</item> -->
-    <item value="line">Line </item>
+    <item value="line">Schnitt </item>
   </param>
   <label xml:space="preserve">
 
-* Select a path in edit mode.
-* Select one or more vertices.
-* Start the extension,
-   - set the radius of the arc.
-   - Apply
+* Wähle einen Pfad aus, schalte in den Editier-Modus.
+* Wähle einen oder mehrere Eckpunkte aus.
+* Starte die Erweiterung,
+   - lege den Radius der Abrundung fest.
+   - Anwenden (Apply)
 
-Each selected vertex is replaced by two or more vertices forming
-a bezier spline that approximates an arc of the given radius.
+Jeder ausgewählte Eckpunkt wird durch zwei oder mehr Pfadknoten 
+ersetzt, die den gewünschten Kreisbogen als Bezier-Spline darstellen.
 
-When the corner type is set to 'line', the arc is
-replaced with a straight cut.
+Wenn als Art der Verrundiung 'Schnitt' gewählt wurde,
+dann wird anstelle der Verrundung eine gerade Linie eingesetzt.
 
  <!-- Keep in sync with name element above and round_corners.py line 76 __version__ = ... -->
 Version: 1.5

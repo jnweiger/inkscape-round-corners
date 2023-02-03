@@ -51,6 +51,7 @@ The code is 100% new API, but we hook a minimalistic 0.92.4 compatibility layer.
 For use with 0.92.4 rename round_corners.092_inx to round_corners.inx and keep this python file as is.
 
 References:
+ - https://inkscape.gitlab.io/extensions/documentation/authors/update1.2.html
  - https://gitlab.com/inkscape/extensions/-/wikis/home
  - https://gitlab.com/inkscape/extras/extensions-tutorials/-/blob/master/My-First-Effect-Extension.md
  - https://gitlab.com/inkscape/extensions/-/wikis/uploads/25063b4ae6c3396fcda428105c5cff89/template_effect.zip
@@ -72,7 +73,7 @@ from __future__ import print_function
 import inkex
 import os, sys, math, pprint, copy
 
-__version__ = '1.5'             # Keep in sync with round_corners.inx line 16
+__version__ = '1.5'             # Keep in sync with round_corners.inx line 16 and line 3
 debug = False                   # True: babble on controlling tty
 
 if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPATIBILITY HACK
