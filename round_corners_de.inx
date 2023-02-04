@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
   <name>Runde Ecken (de) v1.5 </name><!-- for inkscape 1.0.x -->
-  <id>org.inkscape.jnweiger.round_corners</id>
+  <id>org.inkscape.jnweiger.round_corners.de</id>
   <param name="radius" type="float" gui-text="Radius: [mm]" precision="2" min="0.001" max="999.99">2.0</param>
   <param name="method" type="enum" gui-text="Art der Verrundung:">
     <item value="arc">Bogen </item>
