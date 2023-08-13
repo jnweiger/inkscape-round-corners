@@ -438,55 +438,6 @@ class RoundedCorners(inkex.EffectExtension):
       next = { 'idx': next_idx, 'dir':dir2, 'handle':handle2 }
       sn = { 'idx': node_idx, 'prev': prev, 'next': next, 'x': t[1][0], 'y': t[1][1] }
 
-      if dist1 < self.radius:
-        if debug:
-          print("subpath node_idx=%d, dist to prev(%d) is smaller than radius: %g < %g" %
-                (node_idx, prev_idx, dist1, self.radius), file=sys.stderr)
-          pprint.pprint(sn, stream=sys.stderr)
-        if self.skipped_small_len > dist1: self.skipped_small_len = dist1
-        self.skipped_small_count += 1
-        return None, None
-
-      if dist2 < self.radius:
-        if debug:
-          print("subpath node_idx=%d, dist to next(%d) is smaller than radius: %g < %g" %
-                (node_idx, next_idx, dist2, self.radius), file=sys.stderr)
-          pprint.pprint(sn, stream=sys.stderr)
-        if self.skipped_small_len > dist2: self.skipped_small_len = dist2
-        self.skipped_small_count += 1
-        return None, None
-
-      len_h1 = math.sqrt(handle1[0]*handle1[0] + handle1[1]*handle1[1])
-      len_h2 = math.sqrt(handle2[0]*handle2[0] + handle2[1]*handle2[1])
-      prev['hlen'] = len_h1
-      next['hlen'] = len_h2
-
-      if len_h1 < self.radius:
-        if debug:
-          print("subpath node_idx=%d, handle to prev(%d) is shorter than radius: %g < %g" %
-                (node_idx, prev_idx, len_h1, self.radius), file=sys.stderr)
-          pprint.pprint(sn, stream=sys.stderr)
-        if self.skipped_small_len > len_h1: self.skipped_small_len = len_h1
-        self.skipped_small_count += 1
-        return None, None
-      if len_h2 < self.radius:
-        if debug:
-          print("subpath node_idx=%d, handle to next(%d) is shorter than radius: %g < %g" %
-                (node_idx, next_idx, len_h2, self.radius), file=sys.stderr)
-          pprint.pprint(sn, stream=sys.stderr)
-        if self.skipped_small_len > len_h2: self.skipped_small_len = len_h2
-        self.skipped_small_count += 1
-        return None, None
-
-      if len_h1 > dist1: # shorten that handle to dist1, avoid overshooting the point
-        handle1[0] = handle1[0] * dist1 / len_h1
-        handle1[1] = handle1[1] * dist1 / len_h1
-        prev['hlen'] = dist1
-      if len_h2 > dist2: # shorten that handle to dist2, avoid overshooting the point
-        handle2[0] = handle2[0] * dist2 / len_h2
-        handle2[1] = handle2[1] * dist2 / len_h2
-        next['hlen'] = dist2
-
       return sn, sp_node_idx_
 
 
