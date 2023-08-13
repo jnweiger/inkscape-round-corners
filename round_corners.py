@@ -520,6 +520,23 @@ class RoundedCorners(inkex.EffectExtension):
 
       return (c, m)
 
+    def split_bezier_curve(self, p0, p1, p2, p3, t):
+      """
+      Splits the cubic bezier curve into two parts.
+
+      Based on wikipedia (https://de.wikipedia.org/wiki/B%C3%A9zierkurve#Teilung_einer_B%C3%A9zierkurve).
+      Unfortunately, the english wikipedia page does not contain the splitting algorithm.
+      """
+      t1 = 1-t
+      p10 = [t1*p0[0]+t*p1[0], t1*p0[1]+t*p1[1]]
+      p11 = [t1*p1[0]+t*p2[0], t1*p1[1]+t*p2[1]]
+      p12 = [t1*p2[0]+t*p3[0], t1*p2[1]+t*p3[1]]
+      p20 = [t1*p10[0]+t*p11[0], t1*p10[1]+t*p11[1]]
+      p21 = [t1*p11[0]+t*p12[0], t1*p11[1]+t*p12[1]]
+      p30 = [t1*p20[0]+t*p21[0], t1*p20[1]+t*p21[1]]
+      
+      return [[p0, p10, p20, p30], [p30, p21, p12, p3]]
+
 
     def arc_bezier_handles(self, p1, p4, c):
       """
@@ -554,112 +571,59 @@ class RoundedCorners(inkex.EffectExtension):
 
       # The angle to be rounded is now between the vectors a and b
       #
-      a = sn['prev']['handle']
-      b = sn['next']['handle']
-      a_len = sn['prev']['hlen']
-      b_len = sn['next']['hlen']
-      try:
-        # From https://de.wikipedia.org/wiki/Schnittwinkel_(Geometrie)
-        # Wikipedia has an abs() in the formula, which extracts the smaller of the two angles.
-        # We don't want that. We need to distinguish betwenn spitzwingklig and stumpfwinklig.
-        #
-        alpha = math.acos( (a[0]*b[0]+a[1]*b[1]) / ( math.sqrt(a[0]*a[0]+a[1]*a[1]) * math.sqrt(b[0]*b[0]+b[1]*b[1]) ) )
-      except:
-        # Division by 0 error means path folds back on itself here. No space to apply a radius between the segments.
-        self.skipped_degenerated += 1
+      prev_idx = sn['prev']['idx']
+      next_idx = sn['next']['idx']
+
+      prev_node = sp[prev_idx]
+      next_node = sp[next_idx]
+      node = sp[node_idx]
+
+      side = -1 if (node[0][0] - node[1][0])*(node[2][1] - node[1][1]) - (node[0][1] - node[1][1])*(node[2][0] - node[1][0]) > 0 else 1
+
+      s1 = CenterCurveSegment(
+        [prev_node[1][0], prev_node[2][0], node[0][0], node[1][0]],
+        [prev_node[1][1], prev_node[2][1], node[0][1], node[1][1]],
+        side,
+        self.radius,
+        0.001,
+        0,
+        1
+      )
+
+      s2 = CenterCurveSegment(
+        [node[1][0], node[2][0], next_node[0][0], next_node[1][0]],
+        [node[1][1], node[2][1], next_node[0][1], next_node[1][1]],
+        side,
+        self.radius,
+        0.001,
+        0,
+        1
+      )
+
+      t = intersectCenterCurveSegments(s1, s2)
+      if t is None:
         return sp
+      
+      arc_c = s1.calculate_center_point(t[0])
+      if debug: print(f"center: {arc_c}", file=self.tty)
 
-      sn['alpha'] = math.degrees(alpha)
+      [_, p1, p2, p3], _ = self.split_bezier_curve(prev_node[1], prev_node[2], node[0], node[1], t[0])
+      _ , [n0, n1, n2, _] = self.split_bezier_curve(node[1], node[2], next_node[0], next_node[1], t[1])
 
-      # find the amount to trim back both sides so that a circle of radius self.radius would perfectly fit.
-      if alpha < self.eps:
-        # path folds back on itself here. No space to apply a radius between the segments.
-        self.skipped_degenerated += 1
-        return sp
-      if abs(alpha - math.pi) < self.eps:
-        # stretched. radius won't be visible, that is just fine. No need to warn about that.
-        return sp
-      trim = self.radius / math.tan(0.5 * alpha)
-      sn['trim'] = trim
-      if trim < 0.0:
-        print("Error: at node_idx=%d: angle=%g°, trim is negative: %g" % (node_idx, math.degrees(alpha), trim), file=sys.stderr)
-        return sp
+      sp[prev_idx][2] = p1
+      sp[next_idx][0] = n2
 
-      # a_len points to the previous node. There we can always allow max_trim_factor_single, as the trim was either already done,
-      # or will not be done. Only at b_len we need to reserve space for the next trim.
-      # FIXME: also allow max_trim_factor_single at b_len, when we find that the very next node will not be rounded.
-      #
-      available_len = min(max_trim_factor_single*a_len, self.max_trim_factor*b_len)
-      if trim > available_len:
-        if debug:
-          if trim > max_trim_factor_single*a_len:
-            print("Skipping where hlen_a %g * max_trim %g < needed_trim %g" % (a_len, max_trim_factor_single, trim), file=self.tty)
-          if trim > self.max_trim_factor*b_len:
-            print("Skipping where hlen_b %g * max_trim %g < needed_trim %g" % (b_len, self.max_trim_factor, trim), file=self.tty)
-          pprint.pprint(sn, stream=self.tty)
-        if self.skipped_small_len > available_len:
-          self.skipped_small_len = available_len
-        self.skipped_small_count += 1
-        return sp
-      trim_pt_p = [ sn['x'] + a[0] * trim / a_len, sn['y'] + a[1] * trim / a_len ]
-      trim_pt_n = [ sn['x'] + b[0] * trim / b_len, sn['y'] + b[1] * trim / b_len ]
-      sn['prev']['trim_pt'] = trim_pt_p
-      sn['next']['trim_pt'] = trim_pt_n
+      c1, c2 = self.arc_bezier_handles(p3, n0, arc_c)
 
-      if debug:
-        pprint.pprint(sn, stream=self.tty)
-        pprint.pprint(self.cut, stream=self.tty)
-      # We replace the node_idx node by two nodes node_a, node_b.
-      # We need an extra middle node node_m if alpha < 90° -- alpha is the angle between the tangents,
-      # as the arc spans the remainder to complete 180° an arc with more than 90° needs the midpoint.
+      node_a = [p2, p3, c1]
+      node_b = [c2, n0, n1]
 
-      # We preserve the endpoints of the two outside handles if they are non-0-length.
-      # We know that such handles are long enough (because of the above max_trim_factor checks)
-      # to not flip around when applying the trim.
-      # But we move the endpoints of 0-length outside handles with the point when trimming,
-      # so that they don't end up on the inside.
-      prev_handle = sp_node_idx_[0][:]
-      next_handle = sp_node_idx_[2][:]
-      if self.very_close_xy(prev_handle, sp_node_idx_[1]): prev_handle = trim_pt_p[:]
-      if self.very_close_xy(next_handle, sp_node_idx_[1]): next_handle = trim_pt_n[:]
-
-      p1 = trim_pt_p[:]
-      p7 = trim_pt_n[:]
-      arc_c, p4 = self.arc_c_m_from_super_node(sn)
-      node_a = [ prev_handle, p1[:], p1[:] ]    # deep copy, as we may want to modify the second handle later
-      node_b = [ p7[:], p7[:], next_handle ]    # deep copy, as we may want to modify the first handle later
-
-      if alpha >= 0.5*math.pi or self.cut:
-        if self.cut == False:
-          # p3,p4,p5 do not exist, we need no midpoint
-          p2, p6 = self.arc_bezier_handles(p1, p7, arc_c)
-          node_a[2] = p2
-          node_b[0] = p6
-        if node_idx == 0:
-          # use prev idx to know about the extra skip. +1 for the node here, +1 for inclusive.
-          # CAUTION: Keep in sync below
-          sp = [node_a] + [node_b] + sp[1:sn['prev']['idx']+2]
-        else:
-          sp = sp[:node_idx] + [node_a] + [node_b] + sp[node_idx+1:]
-      else:
-        p2, p3 = self.arc_bezier_handles(p1, p4, arc_c)
-        p5, p6 = self.arc_bezier_handles(p4, p7, arc_c)
-        node_m = [ p3, p4, p5 ]
-        node_a[2] = p2
-        node_b[0] = p6
-        if node_idx == 0:
-          # use prev idx to know about the extra skip. +1 for the node here, +1 for inclusive.
-          # CAUTION: Keep in sync above
-          sp = [node_a] + [node_m] + [node_b] + sp[1:sn['prev']['idx']+2]
-        else:
-          sp = sp[:node_idx] + [node_a] + [node_m] + [node_b] + sp[node_idx+1:]
-
-      # A closed path is formed by making the last node indentical to the first node.
-      # So, if we trim at the first node, then duplicte that trim on the last node, to keep the loop closed.
       if node_idx == 0:
-        sp[-1][0] = sp[0][0][:]
-        sp[-1][1] = sp[0][1][:]
-        sp[-1][2] = sp[0][2][:]
+        # use prev idx to know about the extra skip. +1 for the node here, +1 for inclusive.
+        # CAUTION: Keep in sync below
+        sp = [node_a] + [node_b] + sp[1:sn['prev']['idx']+2]
+      else:
+        sp = sp[:node_idx] + [node_a] + [node_b] + sp[node_idx+1:]
 
       return sp
 
