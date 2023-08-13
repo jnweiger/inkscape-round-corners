@@ -49,3 +49,27 @@ class CenterCurveTestCase(TestCase):
         )
         ret = intersectCenterCurveSegments(s1, s2)
         self.assertEqual(ret, None)
+
+    def test_intersection(self):
+        # the two segments are far away of each other.
+        # empty intersection should be found immediately.
+        s1 = CenterCurveSegment(
+            [-1, 1, -1, 1],
+            [-1, -1, 1, 1],
+            1,
+            0.5,
+            0.01,
+            0,
+            1
+        )
+        s2 = CenterCurveSegment(
+            [1,- 1, 1, -1],
+            [-1, -1, 1, 1],
+            -1,
+            0.5,
+            0.01,
+            0,
+            1
+        )
+        ret = intersectCenterCurveSegments(s1, s2)
+        self.assertEqual(ret, (0.8261830601756845, 0.8261830601756845))

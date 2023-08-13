@@ -818,8 +818,40 @@ def intersectCenterCurveSegments(segment1, segment2):
   searchValues = segment1.convexHullSearchValues(segment2._searchDir)
   if segment2._searchValues[1] < searchValues[0] or segment2._searchValues[0] > searchValues[1] or segment2._searchValues[3] < searchValues[2] or segment2._searchValues[2] > searchValues[3]:
     return None
+  
+  if segment1._terminalSegments == 1 and segment2._terminalSegments == 1:
+    # nothing to divide here anymore. Just calculate the time of the intersection of the lines
+    a11 = segment1._p_end[0] - segment1._p_start[0]
+    a21 = segment1._p_end[1] - segment1._p_start[1]
+    a12 = segment2._p_start[0] - segment2._p_end[0]
+    a22 = segment2._p_start[1] - segment2._p_end[1]
+    b1 = segment2._p_start[0] - segment1._p_start[0]
+    b2 = segment2._p_start[1] - segment1._p_start[1]
+    det = a11*a22 - a21*a12
+    print(segment1._t_start, segment1._t_end)
+    if det != 0.:
+      t1 = (a22*b1 - a12*b2)/det
+      t2 = (-a21*b1 + a11*b2)/det
+      return (
+        (1-t1) * segment1._t_start + t1 * segment1._t_end,
+        (1-t2) * segment2._t_start + t2 * segment2._t_end,
+      )
+    else:
+      # TODO: Implement det = 0 case
+      raise Exception("det = 0 case not implemented yet")
 
-  return (0, 0)
+  subSegments1 = segment1._segments if segment1._terminalSegments > 1 else [segment1]
+  # reverse as we want to find the last matching for segment1
+  subSegments1.reverse()
+  subSegments2 = segment2._segments if segment2._terminalSegments > 1 else [segment2]
+
+  for s1 in subSegments1:
+    for s2 in subSegments2:
+      ret = intersectCenterCurveSegments(s1, s2)
+      if ret is not None:
+        return ret
+
+  return None
 
 if __name__ == '__main__':
     RoundedCorners().run()
