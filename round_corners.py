@@ -694,17 +694,94 @@ class CenterCurveSegment:
     self._side = side
     self._radius = radius
     self._eps = eps
-    self.t_start = t_start
-    self.t_end = t_end
-    self.p_start = p_start if p_start is not None else self.calculate_center_point(t_start)
-    self.p_end = p_end if p_end is not None else self.calculate_center_point(t_end)
+    self._t_start = t_start
+    self._t_end = t_end
+    self._p_start = p_start if p_start is not None else self.calculate_center_point(t_start)
+    self._p_end = p_end if p_end is not None else self.calculate_center_point(t_end)
+
+    nx = self._p_end[0]-self._p_start[0]
+    ny = self._p_end[1]-self._p_start[1]
+    n_norm = math.sqrt(nx**2 + ny**2)
+    self._searchDir = (nx / n_norm, ny / n_norm)
+
+    # check that the line between p_start and p_end approximates the curve good enough
+    t_mid = (t_start+t_end)/2.
+    p_mid = self.calculate_center_point(t_mid)
+    p_mid_est = ((self._p_start[0]+self._p_end[0])/2, (self._p_start[1]+self._p_end[1])/2)
+    if  self._t_end - self._t_start > 0.26 or (p_mid_est[0] - p_mid[0])**2 + (p_mid_est[1] - p_mid[1])**2 > self._eps**2:
+      # approximation is not good enough yet
+      self._segments = [
+        CenterCurveSegment(
+          self._x,
+          self._y,
+          self._side,
+          self._radius,
+          self._eps,
+          self._t_start,
+          t_mid,
+          self._p_start,
+          p_mid
+        ),
+        CenterCurveSegment(
+          self._x,
+          self._y,
+          self._side,
+          self._radius,
+          self._eps,
+          t_mid,
+          self._t_end,
+          p_mid,
+          self._p_end,
+        )
+      ]
+      self._terminalSegments = sum([s._terminalSegments for s in self._segments])
+      searchValues = self._segments[0].convexHullSearchValues(self._searchDir)
+      for s in self._segments[1:]:
+        localSearchValues = s.convexHullSearchValues(self._searchDir)
+        searchValues = (
+          min(searchValues[0], localSearchValues[0]),
+          max(searchValues[1], localSearchValues[1]),
+          min(searchValues[2], localSearchValues[2]),
+          max(searchValues[3], localSearchValues[3])
+        )
+      self._searchValues = searchValues
+      # calculate hull points from the intersectSearchValues
+      # this is an overapproximation for the curve, but can be computed recursively and fast
+      self._hullPoints = [
+        (
+          self._searchDir[0]*self._searchValues[0]-self._searchDir[1]*self._searchValues[2],
+          self._searchDir[1]*self._searchValues[0]+self._searchDir[0]*self._searchValues[2],
+        ),
+        (
+          self._searchDir[0]*self._searchValues[0]-self._searchDir[1]*self._searchValues[3],
+          self._searchDir[1]*self._searchValues[0]+self._searchDir[0]*self._searchValues[3],
+        ),
+        (
+          self._searchDir[0]*self._searchValues[1]-self._searchDir[1]*self._searchValues[2],
+          self._searchDir[1]*self._searchValues[1]+self._searchDir[0]*self._searchValues[2],
+        ),
+
+        (
+          self._searchDir[0]*self._searchValues[1]-self._searchDir[1]*self._searchValues[3],
+          self._searchDir[1]*self._searchValues[1]+self._searchDir[0]*self._searchValues[3],
+        ),
+      ]
+    else:
+      self._segments = None
+      self._terminalSegments = 1
+      self._hullPoints = [self._p_start, self._p_end]
+      self._searchValues = self.convexHullSearchValues(self._searchDir)
+
+  def convexHullSearchValues(self, searchDir):
+    v_parallel = [searchDir[0]*p[0]+searchDir[1]*p[1] for p in self._hullPoints]
+    v_orthogonal = [-searchDir[1]*p[0]+searchDir[0]*p[1] for p in self._hullPoints]
+    return (min(v_parallel), max(v_parallel), min(v_orthogonal), max(v_orthogonal))
 
   def calculate_center_point(self, t):
     prev_x_list = self._x
     prev_y_list = self._y
 
     while len(prev_x_list) > 2:
-      print(prev_x_list, prev_y_list)
       # use de casteljaus algorithm to compute points on a bezier curve
       prev_x = prev_x_list[0]
       prev_y = prev_y_list[0]
@@ -726,11 +803,23 @@ class CenterCurveSegment:
     dx = prev_x_list[1] - prev_x_list[0]
     dy = prev_y_list[1] - prev_y_list[0]
     norm = math.sqrt(dx**2+dy**2)
-    print(norm, dx, dy, prev_x_list, prev_y_list)
+
     # TODO: handle norm=0 case -> need to check the second derivative for the direction
     cx = (1-t)*prev_x_list[0] + t*prev_x_list[1] - self._side * dy / norm * self._radius
     cy = (1-t)*prev_y_list[0] + t*prev_y_list[1] + self._side * dx / norm * self._radius
+
     return (cx, cy)
+
+def intersectCenterCurveSegments(segment1, segment2):
+  searchValues = segment2.convexHullSearchValues(segment1._searchDir)
+  if segment1._searchValues[1] < searchValues[0] or segment1._searchValues[0] > searchValues[1] or segment1._searchValues[3] < searchValues[2] or segment1._searchValues[2] > searchValues[3]:
+    return None
+  
+  searchValues = segment1.convexHullSearchValues(segment2._searchDir)
+  if segment2._searchValues[1] < searchValues[0] or segment2._searchValues[0] > searchValues[1] or segment2._searchValues[3] < searchValues[2] or segment2._searchValues[2] > searchValues[3]:
+    return None
+
+  return (0, 0)
 
 if __name__ == '__main__':
     RoundedCorners().run()
