@@ -74,7 +74,7 @@ import inkex
 import os, sys, math, pprint, copy
 
 __version__ = '1.5'             # Keep in sync with round_corners.inx line 16 and line 3
-debug = False                   # True: babble on controlling tty
+debug = True                   # True: babble on controlling tty
 
 if not hasattr(inkex, 'EffectExtension'):       # START OF INKSCAPE 0.92.X COMPATIBILITY HACK
   """ OOPS, the code **after** this if conditional is meant for inkscape 1.0.1,
@@ -673,6 +673,64 @@ class RoundedCorners(inkex.EffectExtension):
       if self.skipped_small_count:
         print("Warning: Skipped %d nodes with not enough space (Value %g is too small. Try again with a smaller radius or only one node selected).\n" % (self.skipped_small_count, self.skipped_small_len), file=sys.stderr)
 
+
+class CenterCurveSegment:
+  def __init__(self, x, y, side, radius, eps, t_start, t_end, p_start=None, p_end=None):
+    """
+    x / y list of coordinates of the bezierpoints
+    side = 1 -> left side
+    side = -1 -> right side
+    radius = the radius the corners should have
+    eps = allowed errors for numerical calculation of 2d points
+    t_start / t_end: defines for which segment of the bezier curve this instance is responsible
+    p_start / p_end: Set the points at t_start / t_end if already calculated to mitigate unnecessary calculations
+    """
+    if len(x) != len(y):
+      raise Exception("x and y coordinate lists do not have the same length.")
+    if len(x) < 2:
+      raise Exception("at least two points required to use the CenterCurveSegment")
+    self._x = x
+    self._y = y
+    self._side = side
+    self._radius = radius
+    self._eps = eps
+    self.t_start = t_start
+    self.t_end = t_end
+    self.p_start = p_start if p_start is not None else self.calculate_center_point(t_start)
+    self.p_end = p_end if p_end is not None else self.calculate_center_point(t_end)
+
+  def calculate_center_point(self, t):
+    prev_x_list = self._x
+    prev_y_list = self._y
+
+    while len(prev_x_list) > 2:
+      print(prev_x_list, prev_y_list)
+      # use de casteljaus algorithm to compute points on a bezier curve
+      prev_x = prev_x_list[0]
+      prev_y = prev_y_list[0]
+      x_list = []
+      y_list = []
+      i = 1
+      while i < len(prev_x_list):
+        x = prev_x_list[i]
+        y = prev_y_list[i]
+        x_list.append((1-t)*prev_x + t*x)
+        y_list.append((1-t)*prev_y + t*y)
+        prev_x = x
+        prev_y = y
+        i += 1
+      
+      prev_x_list = x_list
+      prev_y_list = y_list
+
+    dx = prev_x_list[1] - prev_x_list[0]
+    dy = prev_y_list[1] - prev_y_list[0]
+    norm = math.sqrt(dx**2+dy**2)
+    print(norm, dx, dy, prev_x_list, prev_y_list)
+    # TODO: handle norm=0 case -> need to check the second derivative for the direction
+    cx = (1-t)*prev_x_list[0] + t*prev_x_list[1] - self._side * dy / norm * self._radius
+    cy = (1-t)*prev_y_list[0] + t*prev_y_list[1] + self._side * dx / norm * self._radius
+    return (cx, cy)
 
 if __name__ == '__main__':
     RoundedCorners().run()
